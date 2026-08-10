@@ -1,3 +1,6 @@
+import { and, asc, eq, inArray } from 'drizzle-orm'
+import { db } from '../db/client'
+import { bookings, courts } from '../db/schema'
 import type { IntentDetectionResult } from './intent'
 
 const OPERATING_HOURS = {
@@ -6,15 +9,10 @@ const OPERATING_HOURS = {
   slotMinutes: 60,
 }
 
-type Court = {
-  id: string
-  name: string
-}
-
 type Booking = {
-  court_id: string
-  start_time: string
-  end_time: string
+  courtId: string
+  startTime: string
+  endTime: string
 }
 
 function todayInJakarta() {
@@ -32,7 +30,7 @@ function normalizeTime(time: string) {
 }
 
 function slotOverlaps(start: string, end: string, booking: Booking) {
-  return start < normalizeTime(booking.end_time) && end > normalizeTime(booking.start_time)
+  return start < normalizeTime(booking.endTime) && end > normalizeTime(booking.startTime)
 }
 
 function courtNumber(name: string) {
@@ -55,74 +53,60 @@ function operatingSlots(durationHours: number) {
 }
 
 export async function getAvailabilityContext(intent: IntentDetectionResult) {
-  const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) {
-    console.error('Missing DATABASE_URL')
-    return { error: 'database_not_configured' }
-  }
-
   const date = intent.date ?? todayInJakarta()
   const durationHours = intent.duration_hours ?? 1
-  const sql = new Bun.SQL(databaseUrl)
 
-  try {
-    const courts = (await sql`
-      select id, name
-      from courts
-      where is_active = true
-      order by name
-    `) as Court[]
+  const activeCourts = await db
+    .select({ id: courts.id, name: courts.name })
+    .from(courts)
+    .where(eq(courts.isActive, true))
+    .orderBy(asc(courts.name))
 
-    const bookings = (await sql`
-      select court_id, start_time, end_time
-      from bookings
-      where booking_date = ${date}
-        and status in ('pending', 'confirmed')
-    `) as Booking[]
+  const activeBookings = await db
+    .select({ courtId: bookings.courtId, startTime: bookings.startTime, endTime: bookings.endTime })
+    .from(bookings)
+    .where(and(eq(bookings.bookingDate, date), inArray(bookings.status, ['pending', 'confirmed'])))
 
-    if (intent.start_time) {
-      const startTime = intent.start_time
-      const endTime = addMinutes(startTime, durationHours * 60)
-      const availableCourts = courts
-        .filter((court) => !intent.court_number || courtNumber(court.name) === intent.court_number)
-        .map((court) => ({
-          court_number: courtNumber(court.name),
-          court_name: court.name,
-          status: bookings.some((booking) => booking.court_id === court.id && slotOverlaps(startTime, endTime, booking))
-            ? 'booked'
-            : 'available',
-        }))
-
-      return {
-        mode: 'exact_slot',
-        date,
-        requested_slot: {
-          date,
-          start_time: startTime,
-          end_time: endTime,
-          duration_hours: durationHours,
-        },
-        courts: availableCourts,
-      }
-    }
+  if (intent.start_time) {
+    const startTime = intent.start_time
+    const endTime = addMinutes(startTime, durationHours * 60)
+    const availableCourts = activeCourts
+      .filter((court) => !intent.court_number || courtNumber(court.name) === intent.court_number)
+      .map((court) => ({
+        court_number: courtNumber(court.name),
+        court_name: court.name,
+        status: activeBookings.some((booking) => booking.courtId === court.id && slotOverlaps(startTime, endTime, booking))
+          ? 'booked'
+          : 'available',
+      }))
 
     return {
-      mode: 'daily_availability',
+      mode: 'exact_slot',
       date,
-      duration_hours: durationHours,
-      slots: operatingSlots(durationHours)
-        .map((slot) => ({
-          ...slot,
-          available_courts: courts
-            .filter((court) => !bookings.some((booking) => booking.court_id === court.id && slotOverlaps(slot.start_time, slot.end_time, booking)))
-            .map((court) => ({
-              court_number: courtNumber(court.name),
-              court_name: court.name,
-            })),
-        }))
-        .filter((slot) => slot.available_courts.length > 0),
+      requested_slot: {
+        date,
+        start_time: startTime,
+        end_time: endTime,
+        duration_hours: durationHours,
+      },
+      courts: availableCourts,
     }
-  } finally {
-    await sql.close()
+  }
+
+  return {
+    mode: 'daily_availability',
+    date,
+    duration_hours: durationHours,
+    slots: operatingSlots(durationHours)
+      .map((slot) => ({
+        ...slot,
+        available_courts: activeCourts
+          .filter((court) => !activeBookings.some((booking) => booking.courtId === court.id && slotOverlaps(slot.start_time, slot.end_time, booking)))
+          .map((court) => ({
+            court_number: courtNumber(court.name),
+            court_name: court.name,
+          })),
+      }))
+      .filter((slot) => slot.available_courts.length > 0),
   }
 }

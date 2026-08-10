@@ -38,6 +38,7 @@ User sedang menanyakan ketersediaan lapangan tenis.
 Tugas:
 - Balas natural, singkat, dan jelas dalam bahasa Indonesia.
 - Gunakan hanya data availability dari backend_context.
+- Jika backend_context.error ada, sampaikan bahwa jadwal belum bisa dicek saat ini dan minta user mencoba lagi sebentar.
 - Jangan mengarang slot tersedia atau status booking.
 - Jika mode daily_availability, tampilkan daftar slot kosong per lapangan.
 - Jika mode exact_slot, jelaskan apakah slot yang diminta tersedia dan lapangan mana yang tersedia.
@@ -45,7 +46,6 @@ Tugas:
 - Jika ada slot tersedia, akhiri dengan pertanyaan apakah user ingin booking.
 - Jangan menyuruh user mengisi format kaku jika data sudah cukup untuk ditampilkan.
 - Jangan menyebut database atau proses internal.
-- Jika backend_context.simulation adalah true, sebutkan secara natural bahwa ini masih simulasi sementara.
 - Jangan pakai emoji.
 - Jangan pakai markdown seperti bold, backtick, atau bullet berlebihan.`;
   }

@@ -12,7 +12,16 @@ function buildGeneralHelpContext() {
 
 async function contextForIntent(intent: IntentDetectionResult) {
   if (intent.intent === 'general_help') return buildGeneralHelpContext()
-  if (intent.intent === 'check_availability') return getAvailabilityContext(intent)
+
+  if (intent.intent === 'check_availability') {
+    try {
+      return await getAvailabilityContext(intent)
+    } catch (error) {
+      console.error('Availability context error', error)
+      return { error: 'availability_unavailable' }
+    }
+  }
+
   return {}
 }
 
