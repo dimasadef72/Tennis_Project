@@ -1,3 +1,31 @@
+async function sendWhatsAppText(to: string, text: string) {
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
+
+  if (!phoneNumberId || !accessToken) {
+    console.error('Missing WhatsApp env')
+    return
+  }
+
+  const response = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to,
+      type: 'text',
+      text: { body: text },
+    }),
+  })
+
+  if (!response.ok) {
+    console.error('WhatsApp send failed', response.status, await response.text())
+  }
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method === 'GET') {
     const mode = req.query['hub.mode']
@@ -18,11 +46,18 @@ export default async function handler(req: any, res: any) {
     const message = value?.messages?.[0]
 
     if (message?.type === 'text') {
+      const name = contact?.profile?.name ?? 'Customer'
+
       console.log({
         phone: message.from,
-        name: contact?.profile?.name ?? 'Customer',
+        name,
         text: message.text?.body,
       })
+
+      await sendWhatsAppText(
+        message.from,
+        `Halo ${name}, pesan kamu sudah diterima BMTennis Assistant.`
+      )
     }
 
     return res.status(200).send('OK')
