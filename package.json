@@ -1,13 +1,18 @@
 {
   "name": "Tennis-Project",
   "scripts": {
-    "dev": "bun run --hot src/index.ts"
+    "dev": "bun run --hot src/index.ts",
+    "db:push": "drizzle-kit push",
+    "db:seed": "bun run scripts/seed.ts"
   },
   "dependencies": {
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.13.1",
-    "openai": "^7.4.0"
+    "openai": "^7.4.0",
+    "postgres": "^3.4.9"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "drizzle-kit": "^0.31.10"
   }
 }
