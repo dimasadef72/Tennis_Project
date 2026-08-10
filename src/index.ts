@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { registerAdminRoutes } from './admin'
 
 const app = new Hono()
 
@@ -21,6 +22,8 @@ function legalPage(title: string, body: string) {
 
 
 app.get('/', (c) => c.text('BMTennis API'))
+
+registerAdminRoutes(app)
 
 app.get('/privacy-policy', (c) => c.html(legalPage('Privacy Policy', `
   <h1>Privacy Policy</h1>
