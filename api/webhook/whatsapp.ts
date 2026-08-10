@@ -7,7 +7,7 @@ async function sendWhatsAppText(to: string, text: string) {
     return
   }
 
-  const response = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
+  const response = await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -23,7 +23,10 @@ async function sendWhatsAppText(to: string, text: string) {
 
   if (!response.ok) {
     console.error('WhatsApp send failed', response.status, await response.text())
+    return
   }
+
+  console.log('WhatsApp send ok', await response.text())
 }
 
 export default async function handler(req: any, res: any) {
@@ -44,6 +47,12 @@ export default async function handler(req: any, res: any) {
     const value = body?.entry?.[0]?.changes?.[0]?.value
     const contact = value?.contacts?.[0]
     const message = value?.messages?.[0]
+
+    console.log('WhatsApp webhook received', {
+      hasMessage: Boolean(message),
+      messageType: message?.type,
+      hasStatus: Boolean(value?.statuses?.[0]),
+    })
 
     if (message?.type === 'text') {
       const name = contact?.profile?.name ?? 'Customer'
