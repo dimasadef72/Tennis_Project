@@ -1,3 +1,5 @@
+import { getReplyText } from '../lib/reply'
+
 async function sendWhatsAppText(to: string, text: string) {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
@@ -63,10 +65,7 @@ export default async function handler(req: any, res: any) {
         text: message.text?.body,
       })
 
-      await sendWhatsAppText(
-        message.from,
-        `Halo ${name}, pesan kamu sudah diterima BMTennis Assistant.`
-      )
+      await sendWhatsAppText(message.from, getReplyText(name, message.text?.body ?? ''))
     }
 
     return res.status(200).send('OK')
