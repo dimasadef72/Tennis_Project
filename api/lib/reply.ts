@@ -1,41 +1,45 @@
-function parseAvailabilityRequest(text: string) {
-  const message = text.toLowerCase()
-  const hour = message.match(/(?:jam|pukul)\s*(\d{1,2})/)?.[1]
-  const duration = message.match(/(\d+)\s*jam(?!\s*(?:malam|pagi|siang|sore))/)?.[1]
+import { detectIntent, type IntentDetectionResult } from './intent'
 
-  if (!hour) return null
+function replyFromIntent(name: string, result: IntentDetectionResult) {
+  if (result.intent === 'check_availability') {
+    const missing = []
+    if (!result.date) missing.push('tanggal')
+    if (!result.start_time) missing.push('jam')
+    if (!result.duration_hours) missing.push('durasi')
 
-  return {
-    date: message.includes('besok') ? 'besok' : 'hari ini',
-    hour: Number(hour),
-    duration: duration ? Number(duration) : 1,
-  }
-}
+    if (missing.length) {
+      return `Siap ${name}. Mohon lengkapi ${missing.join(', ')}.
 
-export function getReplyText(name: string, text: string) {
-  const message = text.toLowerCase().trim()
-  const request = parseAvailabilityRequest(message)
+Contoh:
+cek lapangan besok jam 19 2 jam`
+    }
 
-  if (request) {
     return `Siap ${name}. Saya cek dulu ya.
 
 Request:
-Tanggal: ${request.date}
-Jam: ${request.hour}:00
-Durasi: ${request.duration} jam
+Tanggal: ${result.date}
+Jam: ${result.start_time}
+Durasi: ${result.duration_hours} jam
 
 Untuk sementara, simulasi: Lapangan 1 dan Lapangan 2 tersedia.`
   }
 
-  if (message.includes('lapangan') || message.includes('booking') || message.includes('jadwal')) {
-    return `Siap ${name}. Untuk cek lapangan, kirim format:
-cek lapangan [tanggal] [jam] [durasi]
+  if (result.intent === 'request_booking') {
+    return `Siap ${name}. Saya perlu tampilkan ringkasan booking dulu.
 
-Contoh:
-cek lapangan besok jam 19 2 jam`
+Untuk sekarang kirim format lengkap:
+booking lapangan 1 besok jam 19 2 jam`
   }
 
-  if (message.includes('halo') || message.includes('hai') || message.includes('menu') || message === '/start') {
+  if (result.intent === 'confirm_booking') {
+    return `Baik ${name}. Belum ada ringkasan booking yang perlu dikonfirmasi.`
+  }
+
+  if (result.intent === 'get_booking_status') {
+    return `Siap ${name}. Fitur cek status booking akan aktif setelah database booking dipasang.`
+  }
+
+  if (result.intent === 'general_help') {
     return `Halo ${name}, saya BMTennis Assistant.
 
 Saya bisa bantu cek jadwal dan booking lapangan tenis.
@@ -49,4 +53,8 @@ cek lapangan besok jam 19 2 jam`
 Ketik: menu
 atau contoh:
 cek lapangan besok jam 19 2 jam`
+}
+
+export async function getReplyText(name: string, text: string) {
+  return replyFromIntent(name, await detectIntent(text))
 }

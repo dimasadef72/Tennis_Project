@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { getReplyText } from '../api/lib/reply'
 
 const app = new Hono()
 
@@ -20,27 +19,6 @@ function legalPage(title: string, body: string) {
 }
 
 
-async function sendTelegramText(chatId: number, text: string) {
-  const token = process.env.TELEGRAM_BOT_TOKEN
-
-  if (!token) {
-    console.error('Missing TELEGRAM_BOT_TOKEN')
-    return
-  }
-
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text }),
-  })
-
-  if (!response.ok) {
-    console.error('Telegram send failed', response.status, await response.text())
-    return
-  }
-
-  console.log('Telegram send ok')
-}
 
 app.get('/', (c) => c.text('BMTennis API'))
 
@@ -50,7 +28,7 @@ app.get('/privacy-policy', (c) => c.html(legalPage('Privacy Policy', `
   <p>BMTennis Assistant is a booking assistant for Babatan Mukti tennis court reservations.</p>
 
   <h2>Information We Collect</h2>
-  <p>We may collect your name, WhatsApp or Telegram identifier, phone number, booking requests, booking schedule, payment status, and conversation messages related to court reservations.</p>
+  <p>We may collect your name, WhatsApp identifier, phone number, booking requests, booking schedule, payment status, and conversation messages related to court reservations.</p>
 
   <h2>How We Use Information</h2>
   <p>We use this information to check court availability, create bookings, send booking confirmations, process payment status, provide receipts, prevent duplicate bookings, and support customer service.</p>
@@ -99,7 +77,7 @@ app.get('/data-deletion', (c) => c.html(legalPage('Data Deletion', `
 
   <h2>How to Request Deletion</h2>
   <p>Send a message to the official BMTennis booking channel with the text: <strong>Delete my data</strong>.</p>
-  <p>Please include the WhatsApp or Telegram account you used for booking so we can identify the correct records.</p>
+  <p>Please include the WhatsApp account you used for booking so we can identify the correct records.</p>
 
   <h2>What May Be Deleted</h2>
   <p>We may delete or anonymize your name, messaging identifier, phone number, and conversation data where deletion is technically and legally possible.</p>
@@ -141,20 +119,5 @@ app.post('/webhook/whatsapp', async (c) => {
   return c.text('OK')
 })
 
-app.post('/webhook/telegram', async (c) => {
-  const body = await c.req.json()
-  const message = body?.message
-  const text = message?.text
-  const chatId = message?.chat?.id
-
-  console.log('Telegram webhook received', { hasMessage: Boolean(message), hasText: Boolean(text) })
-
-  if (chatId && text) {
-    const name = message.from?.first_name ?? 'Customer'
-    await sendTelegramText(chatId, getReplyText(name, text))
-  }
-
-  return c.text('OK')
-})
 
 export default app

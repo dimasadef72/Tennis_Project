@@ -65,7 +65,7 @@ export default async function handler(req: any, res: any) {
         text: message.text?.body,
       })
 
-      await sendWhatsAppText(message.from, getReplyText(name, message.text?.body ?? ''))
+      await sendWhatsAppText(message.from, await getReplyText(name, message.text?.body ?? ''))
     }
 
     return res.status(200).send('OK')
