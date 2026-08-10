@@ -56,5 +56,7 @@ cek lapangan besok jam 19 2 jam`
 }
 
 export async function getReplyText(name: string, text: string) {
-  return replyFromIntent(name, await detectIntent(text))
+  const intent = await detectIntent(text)
+  console.log('Intent detected', { input: text, result: intent })
+  return replyFromIntent(name, intent)
 }
