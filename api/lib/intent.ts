@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai'
+import OpenAI from 'openai'
 
 export type Intent =
   | 'check_availability'
@@ -50,18 +50,18 @@ function normalizeIntentResult(value: IntentDetectionResult) {
 }
 
 export async function detectIntent(text: string, now = new Date()): Promise<IntentDetectionResult> {
-  const apiKey = process.env.GEMINI_API_KEY
-
-  if (!apiKey) {
-    console.error('Missing GEMINI_API_KEY')
+  if (!process.env.OPENAI_API_KEY) {
+    console.error('Missing OPENAI_API_KEY')
     return emptyResult
   }
 
   try {
-    const ai = new GoogleGenAI({ apiKey })
-    const model = process.env.GEMINI_INTENT_MODEL ?? 'gemini-3.6-flash'
+    const client = new OpenAI()
+    const model = process.env.OPENAI_MODEL ?? 'gpt-5.6-luna'
     const currentDate = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
-    const input = `You are an intent extraction engine for BMTennis Assistant.
+    const response = await client.responses.create({
+      model,
+      input: `You are an intent extraction engine for BMTennis Assistant.
 Return JSON only.
 Do not answer the customer.
 Do not decide court availability, booking success, payment status, or price truth.
@@ -75,6 +75,9 @@ If duration is missing, return null.
 If missing or uncertain, return null.
 There is no cancel_booking intent; cancellation is unsupported in MVP.
 
+Schema:
+{"intent":"check_availability|request_booking|confirm_booking|get_booking_status|general_help|unknown","date":"YYYY-MM-DD|null","start_time":"HH:mm|null","duration_hours":"integer|null","court_number":"1|2|null","booking_code":"string|null"}
+
 Examples:
 Message: besok jam 7 malam lapangan kosong untuk 2 jam?
 JSON: {"intent":"check_availability","date":"2026-08-11","start_time":"19:00","duration_hours":2,"court_number":null,"booking_code":null}
@@ -82,37 +85,15 @@ Message: halo
 JSON: {"intent":"general_help","date":null,"start_time":null,"duration_hours":null,"court_number":null,"booking_code":null}
 
 Input JSON:
-${JSON.stringify({ current_date: currentDate, timezone: 'Asia/Jakarta', message: text })}`
+${JSON.stringify({ current_date: currentDate, timezone: 'Asia/Jakarta', message: text })}`,
+    })
 
-    const interaction = await ai.interactions.create({
-      model,
-      input,
-      response_format: {
-        type: 'text',
-        mime_type: 'application/json',
-        schema: {
-          type: 'object',
-          properties: {
-            intent: {
-              type: 'string',
-              enum: ['check_availability', 'request_booking', 'confirm_booking', 'get_booking_status', 'general_help', 'unknown'],
-            },
-            date: { type: ['string', 'null'] },
-            start_time: { type: ['string', 'null'] },
-            duration_hours: { type: ['integer', 'null'] },
-            court_number: { type: ['integer', 'null'] },
-            booking_code: { type: ['string', 'null'] },
-          },
-          required: ['intent', 'date', 'start_time', 'duration_hours', 'court_number', 'booking_code'],
-          additionalProperties: false,
-        },
-      },
-    } as any)
+    console.log('OpenAI intent usage', response.usage)
 
-    const parsed = JSON.parse(interaction.output_text ?? '{}')
+    const parsed = JSON.parse(response.output_text ?? '{}')
     return isIntentResult(parsed) ? normalizeIntentResult(parsed) : emptyResult
   } catch (error) {
-    console.error('Gemini intent error', error)
+    console.error('OpenAI intent error', error)
     return emptyResult
   }
 }
