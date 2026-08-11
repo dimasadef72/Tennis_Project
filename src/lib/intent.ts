@@ -5,6 +5,7 @@ export type Intent =
   | 'check_availability'
   | 'request_booking'
   | 'confirm_booking'
+  | 'cancel_booking'
   | 'get_booking_status'
   | 'general_help'
   | 'unknown'
@@ -36,6 +37,7 @@ function isIntentResult(value: any): value is IntentDetectionResult {
     'check_availability',
     'request_booking',
     'confirm_booking',
+    'cancel_booking',
     'get_booking_status',
     'general_help',
     'unknown',
@@ -86,10 +88,10 @@ If duration is missing and there is no time range, return null.
 If conversation_context contains a pending booking or pending payment confirmation and the user supplies or changes booking details such as court, date, time, or duration, keep intent as request_booking and extract the supplied fields.
 Examples with pending booking context: "1 jam" -> intent request_booking with duration_hours 1. "hari ini jam 19" -> intent request_booking with date and start_time. "ganti ke lapangan 2" -> intent request_booking with court_number 2.
 If missing or uncertain, return null.
-There is no cancel_booking intent; cancellation is unsupported in MVP.
+cancel_booking is used when the user wants to cancel, back out of, or say never mind about their own pending (unpaid) booking or a slot they were just offered. This includes short rejections like "gajadi", "gak jadi", "batal", "batalin aja" when conversation_context shows a pending booking or pending payment/booking confirmation. A confirmed (already paid) booking cannot be cancelled through chat, but you should still return cancel_booking as the intent and let the backend decide the correct outcome.
 
 Schema:
-{"intent":"check_availability|request_booking|confirm_booking|get_booking_status|general_help|unknown","date":"YYYY-MM-DD|null","start_time":"HH:mm|null","duration_hours":"integer|null","court_number":"1|2|null","booking_code":"string|null"}
+{"intent":"check_availability|request_booking|confirm_booking|cancel_booking|get_booking_status|general_help|unknown","date":"YYYY-MM-DD|null","start_time":"HH:mm|null","duration_hours":"integer|null","court_number":"1|2|null","booking_code":"string|null"}
 
 Examples:
 Message: besok jam 7 malam lapangan kosong untuk 2 jam?
@@ -100,6 +102,8 @@ Message: aku mau ambil jam 18.00 - 20.00
 JSON: {"intent":"request_booking","date":null,"start_time":"18:00","duration_hours":2,"court_number":null,"booking_code":null}
 Message: halo
 JSON: {"intent":"general_help","date":null,"start_time":null,"duration_hours":null,"court_number":null,"booking_code":null}
+Message: gajadi (conversation_context has a pending booking)
+JSON: {"intent":"cancel_booking","date":null,"start_time":null,"duration_hours":null,"court_number":null,"booking_code":null}
 
 Input JSON:
 ${JSON.stringify({ current_date: currentDate, timezone: 'Asia/Jakarta', message: text, conversation_context: context })}`,

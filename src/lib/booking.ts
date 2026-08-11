@@ -313,6 +313,41 @@ export async function latestPendingBooking(customerPhone: string) {
   return booking
 }
 
+export async function cancelPendingBooking(customerPhone: string) {
+  if (!customerPhone) return { status: 'missing_customer_phone' }
+
+  const pending = await latestPendingBooking(customerPhone)
+  if (!pending) {
+    const [latest] = await db
+      .select({ status: bookings.status })
+      .from(bookings)
+      .where(eq(bookings.customerPhone, customerPhone))
+      .orderBy(desc(bookings.createdAt))
+      .limit(1)
+
+    return { status: latest?.status === 'confirmed' ? 'already_confirmed' : 'no_pending_booking' }
+  }
+
+  const [cancelled] = await db
+    .update(bookings)
+    .set({ status: 'cancelled', paymentStatus: 'cancelled', updatedAt: new Date() })
+    .where(and(eq(bookings.id, pending.id), eq(bookings.status, 'pending')))
+    .returning({ bookingCode: bookings.bookingCode })
+
+  if (!cancelled) return { status: 'already_confirmed' }
+
+  return {
+    status: 'cancelled',
+    booking: {
+      booking_code: pending.bookingCode,
+      court_name: pending.courtName,
+      booking_date: pending.bookingDate,
+      start_time: normalizeTime(pending.startTime),
+      end_time: normalizeTime(pending.endTime),
+    },
+  }
+}
+
 function hoursBetween(start: string, end: string) {
   const [startHour, startMinute] = normalizeTime(start).split(':').map(Number)
   const [endHour, endMinute] = normalizeTime(end).split(':').map(Number)

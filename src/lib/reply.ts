@@ -1,7 +1,7 @@
 import { getAvailabilityContext } from './availability'
 import { getRecentChatHistory } from './chat-history'
 import { clearConversationState, getConversationState, setConversationState } from './conversation-state'
-import { applyRescheduleFromState, createBookingFromState, createBookingFromWhatsApp, getLatestBookingStatus, latestPendingBooking, preparePendingPayment, proposeRescheduleFromWhatsApp } from './booking'
+import { applyRescheduleFromState, cancelPendingBooking, createBookingFromState, createBookingFromWhatsApp, getLatestBookingStatus, latestPendingBooking, preparePendingPayment, proposeRescheduleFromWhatsApp } from './booking'
 import { detectConfirmation, detectIntent, type IntentDetectionResult } from './intent'
 import { generateResponse } from './response'
 import { emptyUsage, sumUsage, type Usage } from './usage'
@@ -47,9 +47,9 @@ function bookingDetailStatePayload(intent: IntentDetectionResult) {
 function buildGeneralHelpContext() {
 
   return {
-    supported_actions: ['cek jadwal lapangan', 'booking lapangan tenis'],
+    supported_actions: ['cek jadwal lapangan', 'booking lapangan tenis', 'membatalkan booking yang masih pending'],
     example_message: 'cek lapangan besok jam 19 2 jam',
-    unsupported_actions: ['cancel booking melalui chatbot', 'refund melalui chatbot'],
+    unsupported_actions: ['membatalkan booking yang sudah confirmed', 'refund melalui chatbot'],
   }
 }
 
@@ -110,6 +110,17 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
     } catch (error) {
       console.error('Create booking error', error)
       return { status: 'booking_unavailable' }
+    }
+  }
+
+  if (intent.intent === 'cancel_booking') {
+    try {
+      const result = await cancelPendingBooking(customerPhone)
+      await clearConversationState(customerPhone)
+      return result
+    } catch (error) {
+      console.error('Cancel booking error', error)
+      return { status: 'cancel_unavailable' }
     }
   }
 
