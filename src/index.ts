@@ -139,6 +139,16 @@ function legalPage(title: string, body: string) {
 
 app.get('/', (c) => c.text('BMTennis API'))
 
+app.get('/assets/background.png', async (c) => {
+  const file = Bun.file('docs/background.png')
+  return new Response(file, {
+    headers: {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    },
+  })
+})
+
 registerAdminRoutes(app)
 
 app.get('/privacy-policy', (c) => c.html(legalPage('Privacy Policy', `
