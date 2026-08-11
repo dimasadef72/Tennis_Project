@@ -77,7 +77,7 @@ function checkAuth(authHeader: string | undefined) {
 }
 
 async function loadAdminData(date: string) {
-  const [courtRows, bookingRows] = await Promise.all([
+  const [courtRows, bookingRows, whitelistRows] = await Promise.all([
     db.select({ id: courts.id, name: courts.name }).from(courts).where(eq(courts.isActive, true)).orderBy(asc(courts.name)),
     db.select().from(bookings).where(eq(bookings.bookingDate, date)).orderBy(asc(bookings.startTime), asc(bookings.courtId)),
     db.select().from(whitelistedNumbers).orderBy(asc(whitelistedNumbers.createdAt)),
