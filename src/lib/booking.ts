@@ -5,6 +5,8 @@ import type { IntentDetectionResult } from './intent'
 import { createMidtransPayment } from './midtrans'
 
 const ACTIVE_STATUSES = ['pending', 'confirmed'] as const
+const OPERATING_OPEN = '08:00'
+const OPERATING_CLOSE = '22:00'
 
 function bookingHoldMinutes() {
   return Number(process.env.BOOKING_HOLD_MINUTES ?? 5)
@@ -53,6 +55,14 @@ function isWholeHour(time: string) {
   return normalizeTime(time).endsWith(':00')
 }
 
+function isValidBookingWindow(start: string, durationHours: number) {
+  if (!Number.isInteger(durationHours) || durationHours <= 0) return false
+  const normalizedStart = normalizeTime(start)
+  if (!isWholeHour(normalizedStart) || normalizedStart < OPERATING_OPEN || normalizedStart >= OPERATING_CLOSE) return false
+  const end = addMinutes(normalizedStart, durationHours * 60)
+  return end > normalizedStart && end <= OPERATING_CLOSE
+}
+
 function overlaps(start: string, end: string, booking: BookingRow) {
   return start < normalizeTime(booking.endTime) && end > normalizeTime(booking.startTime)
 }
@@ -88,7 +98,7 @@ export async function createBookingFromWhatsApp(params: {
 
   const date = params.intent.date ?? todayInJakarta()
   const startTime = params.intent.start_time
-  if (!isWholeHour(startTime)) return { status: 'invalid_time', allowed_minutes: '00' }
+  if (!isValidBookingWindow(startTime, params.intent.duration_hours)) return { status: 'invalid_time', allowed_minutes: '00' }
   const endTime = addMinutes(startTime, params.intent.duration_hours * 60)
 
   const activeCourts = await db
@@ -222,6 +232,45 @@ export async function preparePendingPayment(customerPhone: string) {
   }
 }
 
+export async function getLatestBookingStatus(customerPhone: string) {
+  if (!customerPhone) return { status: 'missing_customer_phone' }
+
+  await expireStalePendingBookings()
+
+  const [booking] = await db
+    .select({
+      bookingCode: bookings.bookingCode,
+      bookingDate: bookings.bookingDate,
+      startTime: bookings.startTime,
+      endTime: bookings.endTime,
+      status: bookings.status,
+      paymentStatus: bookings.paymentStatus,
+      paymentAmount: bookings.paymentAmount,
+      courtName: courts.name,
+    })
+    .from(bookings)
+    .innerJoin(courts, eq(bookings.courtId, courts.id))
+    .where(eq(bookings.customerPhone, customerPhone))
+    .orderBy(desc(bookings.createdAt))
+    .limit(1)
+
+  if (!booking) return { status: 'not_found' }
+
+  return {
+    status: 'found',
+    booking: {
+      booking_code: booking.bookingCode,
+      court_name: booking.courtName,
+      booking_date: booking.bookingDate,
+      start_time: normalizeTime(booking.startTime),
+      end_time: normalizeTime(booking.endTime),
+      status: booking.status,
+      payment_status: booking.paymentStatus,
+      amount: booking.paymentAmount,
+    },
+  }
+}
+
 export async function createBookingFromState(params: {
   state: any
   customerName: string
@@ -280,6 +329,7 @@ export async function proposeRescheduleFromWhatsApp(params: {
   const nextDate = params.intent.date ?? pending.bookingDate
   const nextStartTime = params.intent.start_time ?? normalizeTime(pending.startTime)
   const nextDurationHours = params.intent.duration_hours ?? hoursBetween(pending.startTime, pending.endTime)
+  if (!isValidBookingWindow(nextStartTime, nextDurationHours)) return { status: 'invalid_time', allowed_minutes: '00' }
   const nextEndTime = addMinutes(nextStartTime, nextDurationHours * 60)
 
   const activeCourts = await db

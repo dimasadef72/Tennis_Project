@@ -1,6 +1,6 @@
 import { getAvailabilityContext } from './availability'
 import { clearConversationState, getConversationState, setConversationState } from './conversation-state'
-import { applyRescheduleFromState, createBookingFromState, createBookingFromWhatsApp, preparePendingPayment, proposeRescheduleFromWhatsApp } from './booking'
+import { applyRescheduleFromState, createBookingFromState, createBookingFromWhatsApp, getLatestBookingStatus, preparePendingPayment, proposeRescheduleFromWhatsApp } from './booking'
 import { detectConfirmation, detectIntent, type IntentDetectionResult } from './intent'
 import { generateResponse } from './response'
 
@@ -99,6 +99,15 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
     } catch (error) {
       console.error('Create booking error', error)
       return { status: 'booking_unavailable' }
+    }
+  }
+
+  if (intent.intent === 'get_booking_status') {
+    try {
+      return await getLatestBookingStatus(customerPhone)
+    } catch (error) {
+      console.error('Get booking status error', error)
+      return { status: 'status_unavailable' }
     }
   }
 

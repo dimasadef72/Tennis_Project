@@ -34,6 +34,14 @@ function isWholeHour(time: string) {
   return normalizeTime(time).endsWith(':00')
 }
 
+function isValidBookingWindow(start: string, durationHours: number) {
+  if (!Number.isInteger(durationHours) || durationHours <= 0) return false
+  const normalizedStart = normalizeTime(start)
+  if (!isWholeHour(normalizedStart) || normalizedStart < OPERATING_HOURS.open || normalizedStart >= OPERATING_HOURS.close) return false
+  const end = addMinutes(normalizedStart, durationHours * 60)
+  return end > normalizedStart && end <= OPERATING_HOURS.close
+}
+
 function slotOverlaps(start: string, end: string, booking: Booking) {
   return start < normalizeTime(booking.endTime) && end > normalizeTime(booking.startTime)
 }
@@ -75,7 +83,7 @@ export async function getAvailabilityContext(intent: IntentDetectionResult) {
 
   if (intent.start_time) {
     const startTime = intent.start_time
-    if (!isWholeHour(startTime)) return { mode: 'invalid_time', allowed_minutes: '00' }
+    if (!isValidBookingWindow(startTime, durationHours)) return { mode: 'invalid_time', allowed_minutes: '00' }
     const endTime = addMinutes(startTime, durationHours * 60)
     const availableCourts = activeCourts
       .filter((court) => !intent.court_number || courtNumber(court.name) === intent.court_number)
