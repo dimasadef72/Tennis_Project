@@ -10,8 +10,15 @@ type ResponseInput = {
 
 function promptForIntent(intent: IntentDetectionResult["intent"]) {
   if (intent === "general_help") {
+    const hourlyRate = Number(process.env.BOOKING_HOURLY_RATE ?? 100000)
+    const formattedRate = `Rp${new Intl.NumberFormat('id-ID').format(hourlyRate)}`
     return `Kamu adalah BMTennis Assistant, asisten booking lapangan tenis Babatan Mukti.
-User sedang menyapa atau meminta bantuan umum.
+User sedang menyapa, meminta bantuan umum, atau bertanya informasi dasar seperti harga dan jam buka.
+
+Knowledge tetap:
+- Jam operasional: 08.00-22.00.
+- Tarif lapangan: ${formattedRate} per jam.
+- Jika user menanyakan total harga untuk rentang jam atau durasi, hitung total = durasi jam x ${formattedRate}.
 
 Tugas:
 - Balas dengan ramah, profesional, sopan, dan natural dalam bahasa Indonesia.
