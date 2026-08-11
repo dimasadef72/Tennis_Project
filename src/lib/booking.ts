@@ -12,16 +12,17 @@ function bookingHoldMinutes() {
   return Number(process.env.BOOKING_HOLD_MINUTES ?? 5)
 }
 
-function paymentSafetyNetMinutes() {
-  return Number(process.env.PAYMENT_SAFETY_NET_MINUTES ?? 120)
+function paymentExpiryMinutes() {
+  return Number(process.env.MIDTRANS_PAYMENT_EXPIRY_MINUTES ?? 10)
 }
 
 export async function expireStalePendingBookings() {
   const now = Date.now()
   const holdCutoff = new Date(now - bookingHoldMinutes() * 60_000)
-  // Payment-in-progress bookings are expired by the Midtrans webhook (isExpiredMidtransStatus),
-  // not guessed here — this is only a fallback for the rare case the webhook never arrives.
-  const paymentSafetyCutoff = new Date(now - paymentSafetyNetMinutes() * 60_000)
+  // Matches the payment link's own expiry.duration (midtrans.ts) — reliable even when the
+  // customer never opens the link, since no Midtrans webhook fires for a transaction that was
+  // never created. A late "paid" webhook (index.ts) can still confirm a booking expired here.
+  const paymentCutoff = new Date(now - paymentExpiryMinutes() * 60_000)
 
   return db
     .update(bookings)
@@ -31,7 +32,7 @@ export async function expireStalePendingBookings() {
       eq(bookings.notes, 'Created from WhatsApp'),
       or(
         and(eq(bookings.paymentStatus, 'unpaid'), lt(bookings.createdAt, holdCutoff)),
-        and(eq(bookings.paymentStatus, 'pending'), lt(bookings.paymentCreatedAt, paymentSafetyCutoff)),
+        and(eq(bookings.paymentStatus, 'pending'), lt(bookings.paymentCreatedAt, paymentCutoff)),
       ),
     ))
     .returning({ bookingCode: bookings.bookingCode })

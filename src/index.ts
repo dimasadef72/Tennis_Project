@@ -247,28 +247,37 @@ app.post('/webhook/midtrans', async (c) => {
   )
 
   if (isPaidMidtransStatus(body)) {
-    const updated = await db
-      .update(bookings)
-      .set({
-        status: 'confirmed',
-        paymentStatus: 'paid',
-        paidAt: new Date(),
-        paymentReference: body.order_id,
-        updatedAt: new Date(),
+    try {
+      const updated = await db
+        .update(bookings)
+        .set({
+          status: 'confirmed',
+          paymentStatus: 'paid',
+          paidAt: new Date(),
+          paymentReference: body.order_id,
+          updatedAt: new Date(),
+        })
+        .where(and(bookingPaymentMatch, inArray(bookings.paymentStatus, ['pending', 'expired'])))
+        .returning({ bookingCode: bookings.bookingCode, customerPhone: bookings.customerPhone, status: bookings.status, paymentStatus: bookings.paymentStatus })
+
+      console.log('Midtrans paid update', { order_id: body.order_id, updated })
+
+      if (updated[0]) {
+        const receiptUrl = `${publicBaseUrl(c.req.url)}/receipts/${encodeURIComponent(updated[0].bookingCode)}`
+        await sendWhatsAppDocument(
+          updated[0].customerPhone,
+          receiptUrl,
+          `receipt-${updated[0].bookingCode}.pdf`,
+          `Pembayaran booking ${updated[0].bookingCode} sudah diterima. Berikut bukti pembayaran Anda.`,
+        )
+      }
+    } catch (error) {
+      console.error('Midtrans paid update GAGAL — pembayaran masuk tapi slot sudah diambil booking lain, booking tidak ter-confirm otomatis', {
+        order_id: body.order_id,
+        custom_field1: body.custom_field1,
+        gross_amount: body.gross_amount,
+        error,
       })
-      .where(and(bookingPaymentMatch, inArray(bookings.paymentStatus, ['pending', 'expired'])))
-      .returning({ bookingCode: bookings.bookingCode, customerPhone: bookings.customerPhone, status: bookings.status, paymentStatus: bookings.paymentStatus })
-
-    console.log('Midtrans paid update', { order_id: body.order_id, updated })
-
-    if (updated[0]) {
-      const receiptUrl = `${publicBaseUrl(c.req.url)}/receipts/${encodeURIComponent(updated[0].bookingCode)}`
-      await sendWhatsAppDocument(
-        updated[0].customerPhone,
-        receiptUrl,
-        `receipt-${updated[0].bookingCode}.pdf`,
-        `Pembayaran booking ${updated[0].bookingCode} sudah diterima. Berikut bukti pembayaran Anda.`,
-      )
     }
   }
 
