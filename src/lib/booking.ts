@@ -306,7 +306,7 @@ export async function latestPendingBooking(customerPhone: string) {
     })
     .from(bookings)
     .innerJoin(courts, eq(bookings.courtId, courts.id))
-    .where(and(eq(bookings.customerPhone, customerPhone), eq(bookings.status, 'pending')))
+    .where(and(eq(bookings.customerPhone, customerPhone), eq(bookings.status, 'pending'), eq(bookings.notes, 'Created from WhatsApp')))
     .orderBy(desc(bookings.createdAt))
     .limit(1)
 

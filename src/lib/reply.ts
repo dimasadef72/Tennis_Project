@@ -1,3 +1,6 @@
+import { asc, eq } from 'drizzle-orm'
+import { db } from '../db/client'
+import { courts } from '../db/schema'
 import { getAvailabilityContext } from './availability'
 import { getRecentChatHistory } from './chat-history'
 import { clearConversationState, getConversationState, setConversationState } from './conversation-state'
@@ -44,9 +47,16 @@ function bookingDetailStatePayload(intent: IntentDetectionResult) {
   }
 }
 
-function buildGeneralHelpContext() {
+async function buildGeneralHelpContext() {
+  const activeCourts = await db
+    .select({ name: courts.name })
+    .from(courts)
+    .where(eq(courts.isActive, true))
+    .orderBy(asc(courts.name))
 
   return {
+    court_count: activeCourts.length,
+    court_names: activeCourts.map((court) => court.name),
     supported_actions: ['cek jadwal lapangan', 'booking lapangan tenis', 'membatalkan booking yang masih pending'],
     example_message: 'cek lapangan besok jam 19 2 jam',
     unsupported_actions: ['membatalkan booking yang sudah confirmed', 'refund melalui chatbot'],
@@ -54,7 +64,7 @@ function buildGeneralHelpContext() {
 }
 
 async function contextForIntent(intent: IntentDetectionResult, customerName: string, customerPhone: string) {
-  if (intent.intent === 'general_help') return buildGeneralHelpContext()
+  if (intent.intent === 'general_help') return await buildGeneralHelpContext()
 
   if (intent.intent === 'check_availability') {
     try {
@@ -115,9 +125,30 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
 
   if (intent.intent === 'cancel_booking') {
     try {
-      const result = await cancelPendingBooking(customerPhone)
+      const state = await getConversationState(customerPhone)
       await clearConversationState(customerPhone)
-      return result
+
+      if (state?.state === 'awaiting_reschedule_confirmation') {
+        const current = (state.payload as any)?.current_booking
+        return {
+          status: 'reschedule_declined',
+          booking: current
+            ? {
+                booking_code: current.booking_code,
+                court_name: current.court_name,
+                booking_date: current.booking_date,
+                start_time: current.start_time,
+                end_time: current.end_time,
+              }
+            : null,
+        }
+      }
+
+      if (['awaiting_booking_confirmation', 'awaiting_booking_details', 'last_availability_lookup'].includes(state?.state ?? '')) {
+        return { status: 'offer_declined' }
+      }
+
+      return await cancelPendingBooking(customerPhone)
     } catch (error) {
       console.error('Cancel booking error', error)
       return { status: 'cancel_unavailable' }
