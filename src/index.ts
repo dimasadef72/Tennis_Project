@@ -1,14 +1,81 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { db } from './db/client'
-import { bookings, whitelistedNumbers } from './db/schema'
+import { bookings, courts, whitelistedNumbers } from './db/schema'
 import { isExpiredMidtransStatus, isPaidMidtransStatus, isValidMidtransSignature } from './lib/midtrans'
 import { getReplyText } from './lib/reply'
+import { buildReceiptPdf } from './lib/receipt'
 import { registerAdminRoutes } from './admin'
 
 const app = new Hono()
 
 
+
+
+function publicBaseUrl(url: string) {
+  const parsed = new URL(url)
+  return `${parsed.protocol}//${parsed.host}`
+}
+
+async function loadReceiptData(bookingCode: string) {
+  const [booking] = await db
+    .select({
+      bookingCode: bookings.bookingCode,
+      customerName: bookings.customerName,
+      customerPhone: bookings.customerPhone,
+      courtName: courts.name,
+      bookingDate: bookings.bookingDate,
+      startTime: bookings.startTime,
+      endTime: bookings.endTime,
+      paidAt: bookings.paidAt,
+      paymentAmount: bookings.paymentAmount,
+    })
+    .from(bookings)
+    .innerJoin(courts, eq(bookings.courtId, courts.id))
+    .where(eq(bookings.bookingCode, bookingCode))
+    .limit(1)
+
+  if (!booking) return null
+
+  return {
+    ...booking,
+    startTime: booking.startTime.slice(0, 5),
+    endTime: booking.endTime.slice(0, 5),
+    amount: booking.paymentAmount ? `Rp${new Intl.NumberFormat('id-ID').format(booking.paymentAmount)}` : '-',
+    paidAt: booking.paidAt?.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) ?? '-',
+  }
+}
+
+async function sendWhatsAppDocument(to: string, link: string, filename: string, caption: string) {
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
+
+  if (!phoneNumberId || !accessToken) {
+    console.error('Missing WhatsApp env')
+    return
+  }
+
+  const response = await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to,
+      type: 'document',
+      document: { link, filename, caption },
+    }),
+  })
+
+  if (!response.ok) {
+    console.error('WhatsApp document send failed', response.status, await response.text())
+    return
+  }
+
+  console.log('WhatsApp document send ok', await response.text())
+}
 
 async function isAllowedWhatsAppNumber(phone: string) {
   const rows = await db
@@ -142,6 +209,13 @@ app.get('/data-deletion', (c) => c.html(legalPage('Data Deletion', `
 
 
 
+
+app.get('/receipts/:bookingCode', async (c) => {
+  const receipt = await loadReceiptData(c.req.param('bookingCode'))
+  if (!receipt) return c.text('Receipt not found', 404)
+  return buildReceiptPdf(receipt)
+})
+
 app.post('/webhook/midtrans', async (c) => {
   const body = await c.req.json()
   console.log('Midtrans webhook received', {
@@ -158,7 +232,7 @@ app.post('/webhook/midtrans', async (c) => {
   }
 
   if (isPaidMidtransStatus(body)) {
-    await db
+    const updated = await db
       .update(bookings)
       .set({
         status: 'confirmed',
@@ -166,11 +240,24 @@ app.post('/webhook/midtrans', async (c) => {
         paidAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(bookings.bookingCode, body.order_id))
+      .where(and(eq(bookings.bookingCode, body.order_id), eq(bookings.paymentStatus, 'pending')))
+      .returning({ bookingCode: bookings.bookingCode, customerPhone: bookings.customerPhone, status: bookings.status, paymentStatus: bookings.paymentStatus })
+
+    console.log('Midtrans paid update', { order_id: body.order_id, updated })
+
+    if (updated[0]) {
+      const receiptUrl = `${publicBaseUrl(c.req.url)}/receipts/${encodeURIComponent(updated[0].bookingCode)}`
+      await sendWhatsAppDocument(
+        updated[0].customerPhone,
+        receiptUrl,
+        `receipt-${updated[0].bookingCode}.pdf`,
+        `Pembayaran booking ${updated[0].bookingCode} sudah diterima. Berikut bukti pembayaran Anda.`,
+      )
+    }
   }
 
   if (isExpiredMidtransStatus(body)) {
-    await db
+    const updated = await db
       .update(bookings)
       .set({
         status: 'expired',
@@ -178,6 +265,9 @@ app.post('/webhook/midtrans', async (c) => {
         updatedAt: new Date(),
       })
       .where(eq(bookings.bookingCode, body.order_id))
+      .returning({ bookingCode: bookings.bookingCode, status: bookings.status, paymentStatus: bookings.paymentStatus })
+
+    console.log('Midtrans expired update', { order_id: body.order_id, updated })
   }
 
   return c.text('OK')

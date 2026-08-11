@@ -159,6 +159,7 @@ export async function preparePendingPayment(customerPhone: string) {
       .set({
         paymentStatus: 'pending',
         paymentReference: payment.order_id,
+        paymentAmount: amount,
         paymentUrl,
         updatedAt: new Date(),
       })

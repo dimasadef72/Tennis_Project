@@ -95,3 +95,21 @@ export function isExpiredMidtransStatus(payload: any) {
     payload?.transaction_status,
   );
 }
+
+
+export async function getMidtransPaymentDetails(orderId: string) {
+  const response = await fetch(`${paymentLinkBaseUrl}/payment-links/${encodeURIComponent(orderId)}`, {
+    headers: {
+      Authorization: authHeader(),
+      Accept: "application/json",
+    },
+  });
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok)
+    throw new Error(
+      `Midtrans get payment link failed ${response.status}: ${JSON.stringify(body)}`,
+    );
+
+  return body;
+}
