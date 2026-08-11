@@ -82,8 +82,8 @@ Examples: jam 7 malam -> 19:00, jam 7 pagi -> 07:00, pukul 19 -> 19:00.
 If the message contains a time range like 18-20, 18.00-20.00, or jam 18 sampai 20, set start_time to the first time and duration_hours to the range length.
 Examples: 18.00-20.00 -> start_time 18:00 and duration_hours 2.
 If duration is missing and there is no time range, return null.
-If conversation_context contains a pending request_booking and the user only supplies missing booking details such as duration, date, or time, keep intent as request_booking and extract the supplied fields.
-Examples with pending booking context: "1 jam" -> intent request_booking with duration_hours 1. "hari ini jam 19" -> intent request_booking with date and start_time.
+If conversation_context contains a pending booking or pending payment confirmation and the user supplies or changes booking details such as court, date, time, or duration, keep intent as request_booking and extract the supplied fields.
+Examples with pending booking context: "1 jam" -> intent request_booking with duration_hours 1. "hari ini jam 19" -> intent request_booking with date and start_time. "ganti ke lapangan 2" -> intent request_booking with court_number 2.
 If missing or uncertain, return null.
 There is no cancel_booking intent; cancellation is unsupported in MVP.
 

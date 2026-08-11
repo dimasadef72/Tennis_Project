@@ -151,7 +151,7 @@ export async function getReplyText(name: string, text: string, phone = '') {
   const isConfirmed = isAwaitingConfirmation ? await detectConfirmation(text, { state: state?.state, payload: state?.payload }) : false
   const intent: IntentDetectionResult = isConfirmed
     ? { intent: 'confirm_booking', date: null, start_time: null, duration_hours: null, court_number: null, booking_code: null }
-    : await detectIntent(text, new Date(), state?.state === 'awaiting_booking_details' ? { state: state.state, payload: state.payload } : null)
+    : await detectIntent(text, new Date(), state ? { state: state.state, payload: state.payload } : null)
 
   console.log('Intent detected', { input: text, result: intent, state: state?.state, isConfirmed })
 

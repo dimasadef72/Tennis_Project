@@ -331,6 +331,26 @@ export async function proposeRescheduleFromWhatsApp(params: {
   const nextDurationHours = params.intent.duration_hours ?? hoursBetween(pending.startTime, pending.endTime)
   if (!isValidBookingWindow(nextStartTime, nextDurationHours)) return { status: 'invalid_time', allowed_minutes: '00' }
   const nextEndTime = addMinutes(nextStartTime, nextDurationHours * 60)
+  const nextCourtNumber = params.intent.court_number ?? courtNumber(pending.courtName)
+
+  if (
+    nextDate === pending.bookingDate &&
+    nextStartTime === normalizeTime(pending.startTime) &&
+    nextEndTime === normalizeTime(pending.endTime) &&
+    nextCourtNumber === courtNumber(pending.courtName)
+  ) {
+    return {
+      status: 'no_booking_change',
+      booking: {
+        booking_code: pending.bookingCode,
+        court_name: pending.courtName,
+        booking_date: pending.bookingDate,
+        start_time: normalizeTime(pending.startTime),
+        end_time: normalizeTime(pending.endTime),
+        status: 'pending',
+      },
+    }
+  }
 
   const activeCourts = await db
     .select({ id: courts.id, name: courts.name })

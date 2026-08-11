@@ -69,6 +69,7 @@ Tugas:
 - Balas natural, singkat, dan profesional dalam bahasa Indonesia.
 - Gunakan hanya data dari backend_context.
 - Jika status created, jelaskan booking berhasil dibuat sebagai pending. Tampilkan ringkasan dalam format vertikal: Kode booking, Lapangan, Tanggal, Jam. Sampaikan slot hanya ditahan 5 menit, lalu tanya singkat apakah user ingin lanjut ke pembayaran.
+- Jika status no_booking_change, jelaskan booking pending user sudah sesuai dengan detail tersebut. Tampilkan ringkasan singkat: Kode booking, Lapangan, Tanggal, Jam. Lalu tanya apakah ingin lanjut pembayaran.
 - Jika status awaiting_reschedule_confirmation, jelaskan user masih punya booking pending. Tampilkan booking lama dalam format vertikal: Kode booking, Lapangan, Tanggal, Jam. Lalu tampilkan permintaan baru dalam format vertikal: Lapangan, Tanggal, Jam. Minta konfirmasi singkat untuk mengubah booking itu. Jangan gabungkan detail booking menjadi satu kalimat panjang.
 - Jika status reschedule_unavailable, jelaskan slot perubahan yang diminta tidak tersedia dan booking lama masih tetap.
 - Jika status invalid_time, jelaskan booking hanya tersedia di jam bulat dalam jam operasional 08.00-22.00, misalnya 19.00 atau 20.00.
