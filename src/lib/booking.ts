@@ -291,7 +291,7 @@ export async function createBookingFromState(params: {
   })
 }
 
-async function latestPendingBooking(customerPhone: string) {
+export async function latestPendingBooking(customerPhone: string) {
   await expireStalePendingBookings()
 
   const [booking] = await db

@@ -1,8 +1,19 @@
 import { getAvailabilityContext } from './availability'
+import { getRecentChatHistory } from './chat-history'
 import { clearConversationState, getConversationState, setConversationState } from './conversation-state'
-import { applyRescheduleFromState, createBookingFromState, createBookingFromWhatsApp, getLatestBookingStatus, preparePendingPayment, proposeRescheduleFromWhatsApp } from './booking'
+import { applyRescheduleFromState, createBookingFromState, createBookingFromWhatsApp, getLatestBookingStatus, latestPendingBooking, preparePendingPayment, proposeRescheduleFromWhatsApp } from './booking'
 import { detectConfirmation, detectIntent, type IntentDetectionResult } from './intent'
 import { generateResponse } from './response'
+import { emptyUsage, sumUsage, type Usage } from './usage'
+
+export type ReplyResult = {
+  text: string
+  intent: string
+  backendContext: Record<string, unknown>
+  model: string
+  usage: Usage
+  error?: string
+}
 
 function paymentStatePayload(result: any) {
   if (result?.status === 'created' || result?.status === 'rescheduled') return result.booking
@@ -145,23 +156,45 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
   return {}
 }
 
-export async function getReplyText(name: string, text: string, phone = '') {
+export async function getReplyText(name: string, text: string, phone = ''): Promise<ReplyResult> {
   const state = await getConversationState(phone)
+  const recentHistory = await getRecentChatHistory(phone)
+  const conversationContext = { state: state?.state ?? null, payload: state?.payload ?? null, recent_history: recentHistory }
+
   const isAwaitingConfirmation = ['awaiting_booking_confirmation', 'awaiting_reschedule_confirmation', 'awaiting_payment_confirmation'].includes(state?.state ?? '')
-  const isConfirmed = isAwaitingConfirmation ? await detectConfirmation(text, { state: state?.state, payload: state?.payload }) : false
-  const intent: IntentDetectionResult = isConfirmed
-    ? { intent: 'confirm_booking', date: null, start_time: null, duration_hours: null, court_number: null, booking_code: null }
-    : await detectIntent(text, new Date(), state ? { state: state.state, payload: state.payload } : null)
+
+  let confirmationUsage = emptyUsage()
+  let isConfirmed = false
+  if (isAwaitingConfirmation) {
+    const confirmation = await detectConfirmation(text, conversationContext)
+    isConfirmed = confirmation.result
+    confirmationUsage = confirmation.usage
+  }
+
+  const intentCall = isConfirmed
+    ? { result: { intent: 'confirm_booking', date: null, start_time: null, duration_hours: null, court_number: null, booking_code: null } as IntentDetectionResult, usage: emptyUsage() }
+    : await detectIntent(text, new Date(), conversationContext)
+  const intent = intentCall.result
 
   console.log('Intent detected', { input: text, result: intent, state: state?.state, isConfirmed })
 
   const backendContext = await contextForIntent(intent, name, phone)
   console.log('Backend context', { intent: intent.intent, backendContext })
 
-  return generateResponse({
+  const response = await generateResponse({
     userName: name,
     userMessage: text,
+    recentHistory,
     intentResult: intent,
     backendContext,
   })
+
+  return {
+    text: response.text,
+    intent: intent.intent,
+    backendContext,
+    model: response.model,
+    usage: sumUsage([intentCall.usage, confirmationUsage, response.usage]),
+    error: response.error,
+  }
 }

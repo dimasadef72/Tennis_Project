@@ -4,6 +4,7 @@ import { db } from './db/client'
 import { bookings, courts, whitelistedNumbers } from './db/schema'
 import { isExpiredMidtransStatus, isPaidMidtransStatus, isValidMidtransSignature } from './lib/midtrans'
 import { getReplyText } from './lib/reply'
+import { saveChatHistory } from './lib/chat-history'
 import { buildReceiptPdf } from './lib/receipt'
 import { registerAdminRoutes } from './admin'
 
@@ -327,7 +328,22 @@ app.post('/webhook/whatsapp', async (c) => {
       return c.text('OK')
     }
 
-    await sendWhatsAppText(message.from, await getReplyText(name, message.text?.body ?? '', message.from))
+    const userMessage = message.text?.body ?? ''
+    const reply = await getReplyText(name, userMessage, message.from)
+
+    await saveChatHistory({
+      phone: message.from,
+      name,
+      userMessage,
+      aiResponse: reply.text,
+      intent: reply.intent,
+      backendContext: reply.backendContext,
+      model: reply.model,
+      usage: reply.usage,
+      error: reply.error,
+    })
+
+    await sendWhatsAppText(message.from, reply.text)
   }
 
   return c.text('OK')

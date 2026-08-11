@@ -1,9 +1,12 @@
 import OpenAI from "openai";
+import type { ChatHistoryEntry } from "./chat-history";
 import type { IntentDetectionResult } from "./intent";
+import { emptyUsage, extractUsage, type Usage } from "./usage";
 
 type ResponseInput = {
   userName: string;
   userMessage: string;
+  recentHistory: ChatHistoryEntry[];
   intentResult: IntentDetectionResult;
   backendContext: Record<string, unknown>;
 };
@@ -95,7 +98,7 @@ Tugas:
 - Jika status reschedule_unavailable, jelaskan slot perubahan yang diminta tidak tersedia dan booking lama masih tetap.
 - Jika status payment_link_created, tulis ringkasan pembayaran dalam format vertikal: Kode booking, Lapangan, Tanggal, Jam, Total pembayaran. Setelah itu tulis kalimat singkat bahwa link pembayaran berlaku 10 menit, lalu tampilkan link pembayaran dari backend_context.booking.payment_url. Jangan gabungkan ringkasan menjadi satu kalimat panjang.
 - Jika status payment_not_ready, jelaskan booking pending ditemukan dan payment gateway belum aktif, jadi admin akan memproses konfirmasi sementara. Tampilkan ringkasan dalam format vertikal: Kode booking, Lapangan, Tanggal, Jam.
-- Jika status no_pending_booking, jelaskan belum ada booking pending yang bisa dilanjutkan.
+- Jika status no_pending_booking, jelaskan pembayaran dilakukan lewat link Midtrans setelah booking dibuat. Minta user memilih jadwal atau membuat booking terlebih dahulu.
 - Jika status payment_unavailable atau missing_customer_phone, sampaikan belum bisa memproses konfirmasi dan minta coba lagi sebentar.
 - Jangan mengarang payment link.
 - Jangan mengubah status booking.
@@ -123,15 +126,16 @@ Tugas:
   return `Kamu adalah BMTennis Assistant. Balas singkat dalam bahasa Indonesia dan arahkan user untuk cek jadwal lapangan tenis.`;
 }
 
-export async function generateResponse(input: ResponseInput) {
+export async function generateResponse(input: ResponseInput): Promise<{ text: string; usage: Usage; model: string; error?: string }> {
+  const model = process.env.OPENAI_MODEL ?? "gpt-5.6-luna";
+
   if (!process.env.OPENAI_API_KEY) {
     console.error("Missing OPENAI_API_KEY");
-    return "Maaf, sistem sedang belum siap memproses pesan. Coba lagi sebentar ya.";
+    return { text: "Maaf, sistem sedang belum siap memproses pesan. Coba lagi sebentar ya.", usage: emptyUsage(), model, error: "Missing OPENAI_API_KEY" };
   }
 
   try {
     const client = new OpenAI();
-    const model = process.env.OPENAI_MODEL ?? "gpt-5.6-luna";
     const response = await client.responses.create({
       model,
       input: `${promptForIntent(input.intentResult.intent)}
@@ -146,15 +150,15 @@ Tulis hanya final response untuk dikirim ke WhatsApp.`,
 
     const text = response.output_text?.trim();
     if (!text)
-      return "Maaf, saya belum bisa membuat balasan. Coba lagi sebentar ya.";
+      return { text: "Maaf, saya belum bisa membuat balasan. Coba lagi sebentar ya.", usage: extractUsage(response.usage), model, error: "Empty OpenAI response" };
 
     console.log("Response generated", {
       intent: input.intentResult.intent,
       response: text,
     });
-    return text;
+    return { text, usage: extractUsage(response.usage), model };
   } catch (error) {
     console.error("OpenAI response error", error);
-    return "Maaf, saya sedang kesulitan membuat balasan. Coba lagi sebentar ya.";
+    return { text: "Maaf, saya sedang kesulitan membuat balasan. Coba lagi sebentar ya.", usage: emptyUsage(), model, error: "OpenAI response error" };
   }
 }

@@ -71,6 +71,27 @@ export const conversationStates = pgTable('conversation_states', {
 })
 
 
+export const chatHistories = pgTable(
+  'chat_histories',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    phone: text('phone').notNull(),
+    name: text('name'),
+    userMessage: text('user_message').notNull(),
+    aiResponse: text('ai_response').notNull(),
+    intent: text('intent'),
+    backendContext: jsonb('backend_context'),
+    model: text('model'),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    totalTokens: integer('total_tokens'),
+    error: text('error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('chat_histories_phone_created_idx').on(table.phone, table.createdAt)],
+)
+
+
 export const whitelistedNumbers = pgTable('whitelisted_numbers', {
   phone: text('phone').primaryKey(),
   isActive: boolean('is_active').notNull().default(true),

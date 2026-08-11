@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { emptyUsage, extractUsage, type Usage } from './usage'
 
 export type Intent =
   | 'check_availability'
@@ -57,10 +58,10 @@ function normalizeIntentResult(value: IntentDetectionResult) {
   return value
 }
 
-export async function detectIntent(text: string, now = new Date(), context: Record<string, unknown> | null = null): Promise<IntentDetectionResult> {
+export async function detectIntent(text: string, now = new Date(), context: Record<string, unknown> | null = null): Promise<{ result: IntentDetectionResult; usage: Usage }> {
   if (!process.env.OPENAI_API_KEY) {
     console.error('Missing OPENAI_API_KEY')
-    return emptyResult
+    return { result: emptyResult, usage: emptyUsage() }
   }
 
   try {
@@ -107,18 +108,19 @@ ${JSON.stringify({ current_date: currentDate, timezone: 'Asia/Jakarta', message:
     console.log('OpenAI intent usage', response.usage)
 
     const parsed = JSON.parse(response.output_text ?? '{}')
-    return isIntentResult(parsed) ? normalizeIntentResult(parsed) : emptyResult
+    const result = isIntentResult(parsed) ? normalizeIntentResult(parsed) : emptyResult
+    return { result, usage: extractUsage(response.usage) }
   } catch (error) {
     console.error('OpenAI intent error', error)
-    return emptyResult
+    return { result: emptyResult, usage: emptyUsage() }
   }
 }
 
 
-export async function detectConfirmation(text: string, context: Record<string, unknown>): Promise<boolean> {
+export async function detectConfirmation(text: string, context: Record<string, unknown>): Promise<{ result: boolean; usage: Usage }> {
   if (!process.env.OPENAI_API_KEY) {
     console.error('Missing OPENAI_API_KEY')
-    return false
+    return { result: false, usage: emptyUsage() }
   }
 
   try {
@@ -145,9 +147,10 @@ ${JSON.stringify({ message: text, pending_action_context: context })}`,
     console.log('OpenAI confirmation usage', response.usage)
 
     const parsed = JSON.parse(response.output_text ?? '{}')
-    return isConfirmationResult(parsed) ? parsed.is_confirmed : false
+    const result = isConfirmationResult(parsed) ? parsed.is_confirmed : false
+    return { result, usage: extractUsage(response.usage) }
   } catch (error) {
     console.error('OpenAI confirmation error', error)
-    return false
+    return { result: false, usage: emptyUsage() }
   }
 }
