@@ -81,6 +81,8 @@ Schema:
 Examples:
 Message: besok jam 7 malam lapangan kosong untuk 2 jam?
 JSON: {"intent":"check_availability","date":"2026-08-11","start_time":"19:00","duration_hours":2,"court_number":null,"booking_code":null}
+Message: booking lapangan 1 besok jam 19 2 jam
+JSON: {"intent":"request_booking","date":"2026-08-11","start_time":"19:00","duration_hours":2,"court_number":1,"booking_code":null}
 Message: halo
 JSON: {"intent":"general_help","date":null,"start_time":null,"duration_hours":null,"court_number":null,"booking_code":null}
 
