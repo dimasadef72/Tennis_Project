@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, or } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { db } from './db/client'
 import { bookings, courts, whitelistedNumbers } from './db/schema'
@@ -231,6 +231,20 @@ app.post('/webhook/midtrans', async (c) => {
     return c.text('Forbidden', 403)
   }
 
+  const bookingCode = body?.custom_field1
+  const paymentLinkId = body?.metadata?.extra_info?.payment_link_id
+  const bookingPaymentMatch = or(
+    eq(bookings.bookingCode, body.order_id),
+    eq(bookings.paymentReference, body.order_id),
+    ...(bookingCode ? [eq(bookings.bookingCode, bookingCode)] : []),
+    ...(paymentLinkId
+      ? [
+          eq(bookings.paymentUrl, 'https://app.sandbox.midtrans.com/payment-links/' + paymentLinkId),
+          eq(bookings.paymentUrl, 'https://app.midtrans.com/payment-links/' + paymentLinkId),
+        ]
+      : []),
+  )
+
   if (isPaidMidtransStatus(body)) {
     const updated = await db
       .update(bookings)
@@ -238,9 +252,10 @@ app.post('/webhook/midtrans', async (c) => {
         status: 'confirmed',
         paymentStatus: 'paid',
         paidAt: new Date(),
+        paymentReference: body.order_id,
         updatedAt: new Date(),
       })
-      .where(and(eq(bookings.bookingCode, body.order_id), eq(bookings.paymentStatus, 'pending')))
+      .where(and(bookingPaymentMatch, eq(bookings.paymentStatus, 'pending')))
       .returning({ bookingCode: bookings.bookingCode, customerPhone: bookings.customerPhone, status: bookings.status, paymentStatus: bookings.paymentStatus })
 
     console.log('Midtrans paid update', { order_id: body.order_id, updated })
@@ -262,9 +277,10 @@ app.post('/webhook/midtrans', async (c) => {
       .set({
         status: 'expired',
         paymentStatus: 'expired',
+        paymentReference: body.order_id,
         updatedAt: new Date(),
       })
-      .where(eq(bookings.bookingCode, body.order_id))
+      .where(and(bookingPaymentMatch, eq(bookings.paymentStatus, 'pending')))
       .returning({ bookingCode: bookings.bookingCode, status: bookings.status, paymentStatus: bookings.paymentStatus })
 
     console.log('Midtrans expired update', { order_id: body.order_id, updated })

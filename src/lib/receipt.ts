@@ -15,36 +15,49 @@ function pdfText(value: unknown) {
 }
 
 export function buildReceiptPdf(data: ReceiptData) {
-  const lines = [
-    'BMTennis Payment Receipt',
-    '',
-    `Kode booking: ${data.bookingCode}`,
-    `Nama: ${data.customerName}`,
-    `Nomor WhatsApp: ${data.customerPhone}`,
-    `Lapangan: ${data.courtName}`,
-    `Tanggal: ${data.bookingDate}`,
-    `Jam: ${data.startTime}-${data.endTime}`,
-    `Total pembayaran: ${data.amount}`,
-    `Dibayar pada: ${data.paidAt}`,
-    '',
-    'Status: LUNAS',
-  ]
+  const row = (y: number, label: string, value: string) => [
+    '0.95 0.97 0.96 rg',
+    `72 ${y - 18} 130 28 re f`,
+    '0.98 0.98 0.98 rg',
+    `202 ${y - 18} 321 28 re f`,
+    '0.82 0.86 0.84 RG 0.5 w',
+    `72 ${y - 18} 451 28 re S`,
+    '0.22 0.29 0.27 rg',
+    `BT /F2 10 Tf 88 ${y - 1} Td (${pdfText(label)}) Tj ET`,
+    '0.08 0.10 0.12 rg',
+    `BT /F1 10 Tf 218 ${y - 1} Td (${pdfText(value)}) Tj ET`,
+  ].join('\n')
 
   const content = [
-    'BT',
-    '/F1 18 Tf',
-    '72 760 Td',
-    `(${pdfText(lines[0])}) Tj`,
-    '/F1 11 Tf',
-    ...lines.slice(1).flatMap((line) => ['0 -24 Td', `(${pdfText(line)}) Tj`]),
-    'ET',
+    '0.99 1 0.99 rg 0 0 595 842 re f',
+    '0.04 0.28 0.18 rg 0 742 595 100 re f',
+    '0.55 0.84 0.32 rg 72 740 110 4 re f',
+    '1 1 1 rg BT /F2 22 Tf 72 790 Td (BMTennis Receipt) Tj ET',
+    '0.82 0.93 0.87 rg BT /F1 10 Tf 72 768 Td (Bukti pembayaran booking lapangan tenis) Tj ET',
+    '0.82 0.93 0.87 rg BT /F2 12 Tf 420 790 Td (LUNAS) Tj ET',
+    '1 1 1 rg 72 580 451 120 re f',
+    '0.88 0.91 0.89 RG 1 w 72 580 451 120 re S',
+    '0.04 0.28 0.18 rg BT /F2 13 Tf 96 672 Td (Ringkasan Pembayaran) Tj ET',
+    `0.08 0.10 0.12 rg BT /F2 24 Tf 96 635 Td (${pdfText(data.amount)}) Tj ET`,
+    `0.35 0.39 0.38 rg BT /F1 10 Tf 96 612 Td (Kode booking: ${pdfText(data.bookingCode)}) Tj ET`,
+    `0.35 0.39 0.38 rg BT /F1 10 Tf 96 594 Td (Dibayar pada: ${pdfText(data.paidAt)}) Tj ET`,
+    '0.04 0.28 0.18 rg BT /F2 14 Tf 72 535 Td (Detail Booking) Tj ET',
+    row(500, 'Nama customer', data.customerName),
+    row(466, 'Nomor WhatsApp', data.customerPhone),
+    row(432, 'Lapangan', data.courtName),
+    row(398, 'Tanggal', data.bookingDate),
+    row(364, 'Jam', `${data.startTime}-${data.endTime}`),
+    row(330, 'Status', 'Pembayaran lunas'),
+    '0.35 0.39 0.38 rg BT /F1 9 Tf 72 92 Td (Receipt ini dibuat otomatis oleh sistem BMTennis setelah pembayaran diterima.) Tj ET',
+    '0.04 0.28 0.18 rg 72 74 451 2 re f',
   ].join('\n')
 
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>',
     `<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`,
   ]
 

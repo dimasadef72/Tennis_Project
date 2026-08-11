@@ -52,6 +52,7 @@ export async function createMidtransPayment(params: {
         first_name: params.customerName,
         phone: params.customerPhone,
       },
+      custom_field1: params.orderId,
       title: "Booking BMTennis",
     }),
   });

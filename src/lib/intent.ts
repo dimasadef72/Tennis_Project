@@ -57,7 +57,7 @@ function normalizeIntentResult(value: IntentDetectionResult) {
   return value
 }
 
-export async function detectIntent(text: string, now = new Date()): Promise<IntentDetectionResult> {
+export async function detectIntent(text: string, now = new Date(), context: Record<string, unknown> | null = null): Promise<IntentDetectionResult> {
   if (!process.env.OPENAI_API_KEY) {
     console.error('Missing OPENAI_API_KEY')
     return emptyResult
@@ -82,6 +82,8 @@ Examples: jam 7 malam -> 19:00, jam 7 pagi -> 07:00, pukul 19 -> 19:00.
 If the message contains a time range like 18-20, 18.00-20.00, or jam 18 sampai 20, set start_time to the first time and duration_hours to the range length.
 Examples: 18.00-20.00 -> start_time 18:00 and duration_hours 2.
 If duration is missing and there is no time range, return null.
+If conversation_context contains a pending request_booking and the user only supplies missing booking details such as duration, date, or time, keep intent as request_booking and extract the supplied fields.
+Examples with pending booking context: "1 jam" -> intent request_booking with duration_hours 1. "hari ini jam 19" -> intent request_booking with date and start_time.
 If missing or uncertain, return null.
 There is no cancel_booking intent; cancellation is unsupported in MVP.
 
@@ -99,7 +101,7 @@ Message: halo
 JSON: {"intent":"general_help","date":null,"start_time":null,"duration_hours":null,"court_number":null,"booking_code":null}
 
 Input JSON:
-${JSON.stringify({ current_date: currentDate, timezone: 'Asia/Jakarta', message: text })}`,
+${JSON.stringify({ current_date: currentDate, timezone: 'Asia/Jakarta', message: text, conversation_context: context })}`,
     })
 
     console.log('OpenAI intent usage', response.usage)

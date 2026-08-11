@@ -14,7 +14,27 @@ async function setPaymentConfirmationState(customerPhone: string, result: any) {
   if (customerPhone && payload) await setConversationState(customerPhone, 'awaiting_payment_confirmation', payload)
 }
 
+function mergeBookingIntent(intent: IntentDetectionResult, payload: any): IntentDetectionResult {
+  return {
+    ...intent,
+    date: intent.date ?? payload?.date ?? null,
+    start_time: intent.start_time ?? payload?.start_time ?? null,
+    duration_hours: intent.duration_hours ?? payload?.duration_hours ?? null,
+    court_number: intent.court_number ?? payload?.court_number ?? null,
+  }
+}
+
+function bookingDetailStatePayload(intent: IntentDetectionResult) {
+  return {
+    date: intent.date,
+    start_time: intent.start_time,
+    duration_hours: intent.duration_hours,
+    court_number: intent.court_number,
+  }
+}
+
 function buildGeneralHelpContext() {
+
   return {
     supported_actions: ['cek jadwal lapangan', 'booking lapangan tenis'],
     example_message: 'cek lapangan besok jam 19 2 jam',
@@ -57,12 +77,8 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
     try {
       const state = await getConversationState(customerPhone)
       const payload = state?.payload as any
-      const mergedIntent = state?.state === 'last_availability_lookup'
-        ? {
-            ...intent,
-            date: intent.date ?? payload?.date ?? null,
-            duration_hours: intent.duration_hours ?? payload?.duration_hours ?? null,
-          }
+      const mergedIntent = ['last_availability_lookup', 'awaiting_booking_details'].includes(state?.state ?? '')
+        ? mergeBookingIntent(intent, payload)
         : intent
 
       const reschedule = await proposeRescheduleFromWhatsApp({ intent: mergedIntent, customerPhone })
@@ -74,7 +90,11 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
       }
 
       const result = await createBookingFromWhatsApp({ intent: mergedIntent, customerName, customerPhone })
-      await setPaymentConfirmationState(customerPhone, result)
+      if ((result as any).status === 'needs_more_info') {
+        await setConversationState(customerPhone, 'awaiting_booking_details', bookingDetailStatePayload(mergedIntent))
+      } else {
+        await setPaymentConfirmationState(customerPhone, result)
+      }
       return result
     } catch (error) {
       console.error('Create booking error', error)
@@ -122,7 +142,7 @@ export async function getReplyText(name: string, text: string, phone = '') {
   const isConfirmed = isAwaitingConfirmation ? await detectConfirmation(text, { state: state?.state, payload: state?.payload }) : false
   const intent: IntentDetectionResult = isConfirmed
     ? { intent: 'confirm_booking', date: null, start_time: null, duration_hours: null, court_number: null, booking_code: null }
-    : await detectIntent(text)
+    : await detectIntent(text, new Date(), state?.state === 'awaiting_booking_details' ? { state: state.state, payload: state.payload } : null)
 
   console.log('Intent detected', { input: text, result: intent, state: state?.state, isConfirmed })
 
