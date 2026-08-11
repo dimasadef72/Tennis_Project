@@ -34,6 +34,11 @@ export async function createMidtransPayment(params: {
       },
       customer_required: false,
       usage_limit: 1,
+      expiry: {
+        duration: Number(process.env.MIDTRANS_PAYMENT_EXPIRY_MINUTES ?? 15),
+        unit: 'minute',
+      },
+      enabled_payments: ['other_qris'],
       item_details: [
         {
           id: 'court-booking',

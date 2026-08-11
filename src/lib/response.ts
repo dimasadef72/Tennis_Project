@@ -83,7 +83,7 @@ Tugas:
 - Jika status created, jelaskan booking berhasil dibuat sebagai pending dari konfirmasi user. Sebutkan kode booking, lapangan, tanggal, jam, lalu tanya apakah user ingin lanjut pembayaran.
 - Jika status rescheduled, jelaskan booking pending berhasil diubah. Sebutkan kode booking, lapangan baru, tanggal, jam, lalu tanya apakah user ingin lanjut pembayaran.
 - Jika status reschedule_unavailable, jelaskan slot perubahan yang diminta tidak tersedia dan booking lama masih tetap.
-- Jika status payment_link_created, kirim link pembayaran dari backend_context.booking.payment_url. Sebutkan kode booking, nominal jika tersedia, dan minta user menyelesaikan pembayaran melalui link tersebut.
+- Jika status payment_link_created, tulis ringkasan pembayaran dalam format vertikal: Kode booking, Lapangan, Tanggal, Jam, Total pembayaran. Setelah itu tulis kalimat singkat dan link pembayaran dari backend_context.booking.payment_url. Jangan gabungkan ringkasan menjadi satu kalimat panjang.
 - Jika status payment_not_ready, jelaskan booking pending ditemukan dan payment gateway belum aktif, jadi admin akan memproses konfirmasi sementara. Sebutkan kode booking, lapangan, tanggal, jam.
 - Jika status no_pending_booking, jelaskan belum ada booking pending yang bisa dilanjutkan.
 - Jika status payment_unavailable atau missing_customer_phone, sampaikan belum bisa memproses konfirmasi dan minta coba lagi sebentar.
