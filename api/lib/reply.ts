@@ -22,10 +22,17 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
 
       if ((context as any).mode === 'exact_slot' && availableCourt && customerPhone) {
         await setConversationState(customerPhone, 'awaiting_booking_confirmation', {
-          date: intent.date,
+          date: (context as any).date,
           start_time: intent.start_time,
           duration_hours: intent.duration_hours ?? 1,
           court_number: availableCourt.court_number,
+        })
+      }
+
+      if ((context as any).mode === 'daily_availability' && customerPhone) {
+        await setConversationState(customerPhone, 'last_availability_lookup', {
+          date: (context as any).date,
+          duration_hours: intent.duration_hours ?? 1,
         })
       }
 
@@ -38,7 +45,17 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
 
   if (intent.intent === 'request_booking') {
     try {
-      return await createBookingFromWhatsApp({ intent, customerName, customerPhone })
+      const state = await getConversationState(customerPhone)
+      const payload = state?.payload as any
+      const mergedIntent = state?.state === 'last_availability_lookup'
+        ? {
+            ...intent,
+            date: intent.date ?? payload?.date ?? null,
+            duration_hours: intent.duration_hours ?? payload?.duration_hours ?? null,
+          }
+        : intent
+
+      return await createBookingFromWhatsApp({ intent: mergedIntent, customerName, customerPhone })
     } catch (error) {
       console.error('Create booking error', error)
       return { status: 'booking_unavailable' }

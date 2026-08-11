@@ -71,7 +71,9 @@ Return date as ISO YYYY-MM-DD, never words like hari ini, besok, lusa.
 Normalize time to 24-hour HH:mm.
 Indonesian time rules: pagi means AM; siang, sore, and malam mean PM unless the hour is already 13-23.
 Examples: jam 7 malam -> 19:00, jam 7 pagi -> 07:00, pukul 19 -> 19:00.
-If duration is missing, return null.
+If the message contains a time range like 18-20, 18.00-20.00, or jam 18 sampai 20, set start_time to the first time and duration_hours to the range length.
+Examples: 18.00-20.00 -> start_time 18:00 and duration_hours 2.
+If duration is missing and there is no time range, return null.
 If missing or uncertain, return null.
 There is no cancel_booking intent; cancellation is unsupported in MVP.
 
@@ -83,6 +85,8 @@ Message: besok jam 7 malam lapangan kosong untuk 2 jam?
 JSON: {"intent":"check_availability","date":"2026-08-11","start_time":"19:00","duration_hours":2,"court_number":null,"booking_code":null}
 Message: booking lapangan 1 besok jam 19 2 jam
 JSON: {"intent":"request_booking","date":"2026-08-11","start_time":"19:00","duration_hours":2,"court_number":1,"booking_code":null}
+Message: aku mau ambil jam 18.00 - 20.00
+JSON: {"intent":"request_booking","date":null,"start_time":"18:00","duration_hours":2,"court_number":null,"booking_code":null}
 Message: halo
 JSON: {"intent":"general_help","date":null,"start_time":null,"duration_hours":null,"court_number":null,"booking_code":null}
 
