@@ -60,8 +60,8 @@ User sedang meminta booking lapangan tenis.
 Tugas:
 - Balas natural, singkat, dan profesional dalam bahasa Indonesia.
 - Gunakan hanya data dari backend_context.
-- Jika status created, jelaskan booking berhasil dibuat sebagai pending, sebutkan kode booking, lapangan, tanggal, jam, lalu tanya singkat apakah user ingin lanjut ke pembayaran.
-- Jika status awaiting_reschedule_confirmation, jelaskan user masih punya booking pending dan tampilkan perubahan dari current_booking ke requested_booking, lalu minta konfirmasi singkat untuk mengubah booking itu.
+- Jika status created, jelaskan booking berhasil dibuat sebagai pending. Tampilkan ringkasan dalam format vertikal: Kode booking, Lapangan, Tanggal, Jam. Lalu tanya singkat apakah user ingin lanjut ke pembayaran.
+- Jika status awaiting_reschedule_confirmation, jelaskan user masih punya booking pending. Tampilkan booking lama dalam format vertikal: Kode booking, Lapangan, Tanggal, Jam. Lalu tampilkan permintaan baru dalam format vertikal: Lapangan, Tanggal, Jam. Minta konfirmasi singkat untuk mengubah booking itu. Jangan gabungkan detail booking menjadi satu kalimat panjang.
 - Jika status reschedule_unavailable, jelaskan slot perubahan yang diminta tidak tersedia dan booking lama masih tetap.
 - Jika status needs_more_info, minta data yang kurang dan beri contoh singkat dari backend_context.example.
 - Jika status slot_unavailable, jelaskan slot tersebut sudah terisi dan minta user pilih jam/lapangan lain.
@@ -80,11 +80,11 @@ User sedang mengonfirmasi booking atau ingin lanjut pembayaran.
 Tugas:
 - Balas natural, singkat, dan profesional dalam bahasa Indonesia.
 - Gunakan hanya data dari backend_context.
-- Jika status created, jelaskan booking berhasil dibuat sebagai pending dari konfirmasi user. Sebutkan kode booking, lapangan, tanggal, jam, lalu tanya apakah user ingin lanjut pembayaran.
-- Jika status rescheduled, jelaskan booking pending berhasil diubah. Sebutkan kode booking, lapangan baru, tanggal, jam, lalu tanya apakah user ingin lanjut pembayaran.
+- Jika status created, jelaskan booking berhasil dibuat sebagai pending dari konfirmasi user. Tampilkan ringkasan dalam format vertikal: Kode booking, Lapangan, Tanggal, Jam. Lalu tanya apakah user ingin lanjut pembayaran.
+- Jika status rescheduled, jelaskan booking pending berhasil diubah. Tampilkan ringkasan dalam format vertikal: Kode booking, Lapangan, Tanggal, Jam. Lalu tanya apakah user ingin lanjut pembayaran.
 - Jika status reschedule_unavailable, jelaskan slot perubahan yang diminta tidak tersedia dan booking lama masih tetap.
 - Jika status payment_link_created, tulis ringkasan pembayaran dalam format vertikal: Kode booking, Lapangan, Tanggal, Jam, Total pembayaran. Setelah itu tulis kalimat singkat dan link pembayaran dari backend_context.booking.payment_url. Jangan gabungkan ringkasan menjadi satu kalimat panjang.
-- Jika status payment_not_ready, jelaskan booking pending ditemukan dan payment gateway belum aktif, jadi admin akan memproses konfirmasi sementara. Sebutkan kode booking, lapangan, tanggal, jam.
+- Jika status payment_not_ready, jelaskan booking pending ditemukan dan payment gateway belum aktif, jadi admin akan memproses konfirmasi sementara. Tampilkan ringkasan dalam format vertikal: Kode booking, Lapangan, Tanggal, Jam.
 - Jika status no_pending_booking, jelaskan belum ada booking pending yang bisa dilanjutkan.
 - Jika status payment_unavailable atau missing_customer_phone, sampaikan belum bisa memproses konfirmasi dan minta coba lagi sebentar.
 - Jangan mengarang payment link.

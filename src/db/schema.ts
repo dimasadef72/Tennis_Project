@@ -66,3 +66,11 @@ export const conversationStates = pgTable('conversation_states', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+
+export const whitelistedNumbers = pgTable('whitelisted_numbers', {
+  phone: text('phone').primaryKey(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})

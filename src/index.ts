@@ -1,13 +1,24 @@
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { db } from './db/client'
-import { bookings } from './db/schema'
-import { isPaidMidtransStatus, isValidMidtransSignature } from './lib/midtrans'
+import { bookings, whitelistedNumbers } from './db/schema'
+import { isExpiredMidtransStatus, isPaidMidtransStatus, isValidMidtransSignature } from './lib/midtrans'
 import { getReplyText } from './lib/reply'
 import { registerAdminRoutes } from './admin'
 
 const app = new Hono()
 
+
+
+async function isAllowedWhatsAppNumber(phone: string) {
+  const rows = await db
+    .select({ phone: whitelistedNumbers.phone })
+    .from(whitelistedNumbers)
+    .where(eq(whitelistedNumbers.isActive, true))
+
+  if (rows.length === 0) return true
+  return rows.some((row) => row.phone === phone)
+}
 
 async function sendWhatsAppText(to: string, text: string) {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
@@ -158,6 +169,17 @@ app.post('/webhook/midtrans', async (c) => {
       .where(eq(bookings.bookingCode, body.order_id))
   }
 
+  if (isExpiredMidtransStatus(body)) {
+    await db
+      .update(bookings)
+      .set({
+        status: 'expired',
+        paymentStatus: 'expired',
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.bookingCode, body.order_id))
+  }
+
   return c.text('OK')
 })
 
@@ -193,6 +215,11 @@ app.post('/webhook/whatsapp', async (c) => {
       name,
       text: message.text?.body,
     })
+
+    if (!(await isAllowedWhatsAppNumber(message.from))) {
+      console.log('WhatsApp ignored non-whitelisted number', { phone: message.from })
+      return c.text('OK')
+    }
 
     await sendWhatsAppText(message.from, await getReplyText(name, message.text?.body ?? '', message.from))
   }

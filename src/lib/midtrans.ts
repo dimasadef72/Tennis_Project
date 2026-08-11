@@ -81,3 +81,8 @@ export function isValidMidtransSignature(payload: any) {
 export function isPaidMidtransStatus(payload: any) {
   return payload?.transaction_status === 'settlement' || (payload?.transaction_status === 'capture' && payload?.fraud_status === 'accept')
 }
+
+
+export function isExpiredMidtransStatus(payload: any) {
+  return ['expire', 'cancel', 'deny', 'failure'].includes(payload?.transaction_status)
+}
