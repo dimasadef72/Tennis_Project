@@ -65,6 +65,18 @@ function operatingSlots(durationHours: number) {
   return slots
 }
 
+function availableSlotsForDay(durationHours: number, activeCourts: { id: string; name: string }[], activeBookings: Booking[], courtFilter?: number | null) {
+  return operatingSlots(durationHours)
+    .map((slot) => ({
+      ...slot,
+      available_courts: activeCourts
+        .filter((court) => !courtFilter || courtNumber(court.name) === courtFilter)
+        .filter((court) => !activeBookings.some((booking) => booking.courtId === court.id && slotOverlaps(slot.start_time, slot.end_time, booking)))
+        .map((court) => ({ court_number: courtNumber(court.name), court_name: court.name })),
+    }))
+    .filter((slot) => slot.available_courts.length > 0)
+}
+
 export async function getAvailabilityContext(intent: IntentDetectionResult) {
   await expireStalePendingBookings()
   const date = intent.date ?? todayInJakarta()
@@ -95,6 +107,11 @@ export async function getAvailabilityContext(intent: IntentDetectionResult) {
           : 'available',
       }))
 
+    const alternatives = availableCourts.some((court) => court.status === 'available')
+      ? []
+      : availableSlotsForDay(durationHours, activeCourts, activeBookings, intent.court_number)
+          .filter((slot) => slot.start_time !== startTime)
+          .slice(0, 5)
     return {
       mode: 'exact_slot',
       date,
@@ -105,6 +122,7 @@ export async function getAvailabilityContext(intent: IntentDetectionResult) {
         duration_hours: durationHours,
       },
       courts: availableCourts,
+      alternatives,
     }
   }
 
@@ -112,16 +130,6 @@ export async function getAvailabilityContext(intent: IntentDetectionResult) {
     mode: 'daily_availability',
     date,
     duration_hours: durationHours,
-    slots: operatingSlots(durationHours)
-      .map((slot) => ({
-        ...slot,
-        available_courts: activeCourts
-          .filter((court) => !activeBookings.some((booking) => booking.courtId === court.id && slotOverlaps(slot.start_time, slot.end_time, booking)))
-          .map((court) => ({
-            court_number: courtNumber(court.name),
-            court_name: court.name,
-          })),
-      }))
-      .filter((slot) => slot.available_courts.length > 0),
+    slots: availableSlotsForDay(durationHours, activeCourts, activeBookings),
   }
 }

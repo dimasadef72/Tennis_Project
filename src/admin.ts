@@ -347,10 +347,14 @@ function renderAdmin(params: {
             ? `<form method="post" action="/admin/bookings/cancel"><input type="hidden" name="id" value="${escapeHtml(booking.id)}"><input type="hidden" name="booking_date" value="${escapeHtml(booking.bookingDate)}"><button class="small-button" type="button" onclick="confirmCancel(this.closest('form'), '${escapeHtml(booking.bookingCode)}')">Batalkan</button></form>`
             : ''
 
-          return `<tr data-search="${escapeHtml(`${booking.bookingCode} ${booking.customerName} ${booking.customerPhone}`.toLowerCase())}">
+          const courtName = params.courtRows.find((court) => court.id === booking.courtId)?.name ?? '-'
+          const paymentState = booking.paymentAmount ? 'paid' : 'unpaid'
+          const searchable = [booking.bookingCode, booking.customerName, booking.customerPhone, courtName, `${normalizeTime(booking.startTime)}-${normalizeTime(booking.endTime)}`, booking.status, paymentState, booking.paymentAmount ?? '', booking.paymentAmount ? formatRupiah(booking.paymentAmount) : '-', booking.notes ?? ''].join(' ').toLowerCase()
+
+          return `<tr data-search="${escapeHtml(searchable)}" data-status="${escapeHtml(booking.status)}" data-court="${escapeHtml(booking.courtId)}" data-payment="${paymentState}" data-start="${normalizeTime(booking.startTime)}">
 <td>${escapeHtml(booking.bookingCode)}</td>
 <td>${escapeHtml(booking.customerName)}<small>${escapeHtml(booking.customerPhone)}</small></td>
-<td>${escapeHtml(params.courtRows.find((court) => court.id === booking.courtId)?.name ?? '-')}</td>
+<td>${escapeHtml(courtName)}</td>
 <td>${normalizeTime(booking.startTime)}-${normalizeTime(booking.endTime)}</td>
 <td><span class="pill ${escapeHtml(booking.status)}"><i></i>${escapeHtml(booking.status)}</span></td>
 <td>${payment}</td>
@@ -362,7 +366,8 @@ function renderAdmin(params: {
     : '<tr><td colspan="8" class="empty">Belum ada booking di tanggal ini.</td></tr>'
 
   const courtOptions = params.courtRows.map((court) => `<option value="${court.id}">${escapeHtml(court.name)}</option>`).join('')
-  const tableCourtFilterOptions = params.courtRows.map((court) => `<option value="${court.id}">${escapeHtml(court.name)}</option>`).join("")
+  const tableTimeFilterOptions = slotRows.map((slot) => `<option value="${slot.start}">${slot.start}</option>`).join('')
+  const tableCourtFilterOptions = params.courtRows.map((court) => `<option value="${court.id}">${escapeHtml(court.name)}</option>`).join('')
 
   const whitelistList = params.whitelistRows.length
     ? params.whitelistRows
@@ -486,8 +491,15 @@ tbody tr:hover{background:var(--accent2)}
 .pill.expired{background:var(--danger2);color:var(--danger)}
 .pill.cancelled{background:var(--neutral2);color:var(--muted)}
 .empty{text-align:center;color:var(--muted);padding:32px}
-.table-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 20px;border-bottom:1px solid var(--line2)}
-.table-toolbar input{width:240px}
+.table-toolbar{padding:14px 20px 16px;border-bottom:1px solid var(--line2);background:linear-gradient(180deg,#fff 0%,#fbfcf9 100%)}
+.booking-toolbar-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.booking-count{color:var(--muted);font-size:13px;font-weight:650}
+.filter-reset{height:32px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--muted);font-weight:700;padding:0 12px;font-size:12.5px;cursor:pointer}
+.filter-reset:hover{background:var(--neutral2)}
+.filter-grid{display:grid;grid-template-columns:minmax(220px,1.35fr) repeat(4,minmax(145px,1fr));gap:10px}
+.filter-grid label{display:grid;gap:6px;color:var(--muted);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.filter-grid input,.filter-grid select{height:38px;border:1px solid var(--line);border-radius:9px;padding:0 11px;background:#fff;color:var(--ink);font:inherit;font-size:13px;outline:none;box-shadow:var(--shadow-sm)}
+.filter-grid input:focus,.filter-grid select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent2)}
 td form{margin:0}
 tr.is-hidden{display:none}
 
@@ -509,8 +521,8 @@ dialog::backdrop{background:rgba(16,22,17,.45);backdrop-filter:blur(2px)}
   .top,.admin-actions,.datebar{align-items:stretch;flex-direction:column}
   .grid,.field-row{grid-template-columns:1fr}
   .cards{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .table-toolbar{flex-direction:column;align-items:stretch}
-  .table-toolbar input{width:100%}
+  .booking-toolbar-head{align-items:stretch;flex-direction:column}
+  .filter-grid{grid-template-columns:1fr}
   .slots{grid-template-columns:1fr}
   .booking-panel{position:static}
 }
@@ -556,7 +568,7 @@ dialog::backdrop{background:rgba(16,22,17,.45);backdrop-filter:blur(2px)}
     <div class="card"><div class="card-icon">${ICON_CHECK}</div><span>Booking Aktif</span><strong>${activeBookings.length}</strong></div>
   </div>
   <div class="grid"><section class="panel"><h2>Timeline Harian</h2><div class="timeline">${timeline}</div></section><aside class="side"><section class="panel booking-panel"><h2 class="booking-head"><span>Booking Manual</span><span class="court-mark" aria-hidden="true"></span></h2><form class="form" method="post" action="/admin/bookings"><input type="hidden" name="booking_date" value="${escapeHtml(params.date)}"><p class="form-intro">Input booking langsung ke jadwal ${escapeHtml(params.date)}. Sistem akan menolak slot yang bentrok.</p>${params.message ? `<div class="form-feedback notice">${escapeHtml(params.message)}</div>` : ''}${params.error ? `<div class="form-feedback error">${escapeHtml(params.error)}</div>` : ''}<label><span>Nama Customer</span><input name="customer_name" required placeholder="Contoh: Dimas"></label><label><span>Nomor WhatsApp</span><input name="customer_phone" required placeholder="628xxxxxxxxxx"></label><div class="field-row"><label><span>Lapangan</span><select name="court_id" required>${courtOptions}</select></label><label><span>Status</span><select name="status"><option value="confirmed">Confirmed</option><option value="pending">Pending</option></select></label></div><div class="field-row"><label><span>Jam Mulai</span><input type="time" name="start_time" required value="19:00"></label><label><span>Jam Selesai</span><input type="time" name="end_time" required value="20:00"></label></div><label><span>Catatan</span><textarea name="notes" placeholder="Catatan internal admin"></textarea></label><button type="submit">Simpan ke Jadwal</button></form></section><section class="panel"><h2>Whitelist WhatsApp</h2><form class="form" method="post" action="/admin/whitelist"><p class="form-intro">Jika daftar ini diisi, hanya nomor aktif di bawah yang diproses bot.</p><label><span>Nomor WhatsApp</span><input name="phone" required placeholder="628xxxxxxxxxx"></label><button type="submit">Tambah Nomor</button></form><table><thead><tr><th>Nomor</th><th></th></tr></thead><tbody>${whitelistList}</tbody></table></section></aside></div>
-  <section class="panel" style="margin-top:18px"><h2>Data Booking</h2><div class="table-toolbar"><span style="color:var(--muted);font-size:13px">${params.bookingRows.length} booking di tanggal ini</span><input id="booking-search" type="search" placeholder="Cari kode, nama, atau nomor..."></div><div style="overflow-x:auto"><table><thead><tr><th>Kode</th><th>Customer</th><th>Lapangan</th><th>Jam</th><th>Status</th><th>Bayar</th><th>Catatan</th><th></th></tr></thead><tbody id="booking-rows">${bookingList}</tbody></table></div></section>
+  <section class="panel data-panel" style="margin-top:18px"><h2>Data Booking</h2><div class="table-toolbar booking-filters"><div class="booking-toolbar-head"><span id="booking-count" class="booking-count">${params.bookingRows.length} booking di tanggal ini</span><button id="booking-filter-reset" class="filter-reset" type="button">Reset</button></div><div class="filter-grid"><label><span>Cari</span><input id="booking-search" type="search" placeholder="Kode, nama, nomor, catatan..."></label><label><span>Status</span><select id="booking-status-filter"><option value="">Semua status</option><option value="confirmed">Confirmed</option><option value="pending">Pending</option><option value="expired">Expired</option><option value="cancelled">Cancelled</option></select></label><label><span>Lapangan</span><select id="booking-court-filter"><option value="">Semua lapangan</option>${tableCourtFilterOptions}</select></label><label><span>Pembayaran</span><select id="booking-payment-filter"><option value="">Semua bayar</option><option value="paid">Ada nominal</option><option value="unpaid">Belum ada nominal</option></select></label><label><span>Jam mulai</span><select id="booking-time-filter"><option value="">Semua jam</option>${tableTimeFilterOptions}</select></label></div></div><div style="overflow-x:auto"><table><thead><tr><th>Kode</th><th>Customer</th><th>Lapangan</th><th>Jam</th><th>Status</th><th>Bayar</th><th>Catatan</th><th></th></tr></thead><tbody id="booking-rows">${bookingList}<tr id="booking-filter-empty" class="is-hidden"><td colspan="8" class="empty">Tidak ada booking yang cocok dengan filter.</td></tr></tbody></table></div></section>
 </main>
 <dialog id="cancel-dialog">
   <div class="dialog-body">
@@ -569,12 +581,42 @@ dialog::backdrop{background:rgba(16,22,17,.45);backdrop-filter:blur(2px)}
   </div>
 </dialog>
 <script>
-document.getElementById('booking-search').addEventListener('input', function (event) {
-  const query = event.target.value.trim().toLowerCase()
-  document.querySelectorAll('#booking-rows tr[data-search]').forEach(function (row) {
-    row.classList.toggle('is-hidden', query.length > 0 && !row.dataset.search.includes(query))
+const bookingRows = Array.from(document.querySelectorAll('#booking-rows tr[data-search]'))
+const bookingFilters = {
+  query: document.getElementById('booking-search'),
+  status: document.getElementById('booking-status-filter'),
+  court: document.getElementById('booking-court-filter'),
+  payment: document.getElementById('booking-payment-filter'),
+  time: document.getElementById('booking-time-filter'),
+}
+const bookingCount = document.getElementById('booking-count')
+const bookingFilterEmpty = document.getElementById('booking-filter-empty')
+
+function applyBookingFilters() {
+  const query = bookingFilters.query.value.trim().toLowerCase()
+  let visible = 0
+  bookingRows.forEach(function (row) {
+    const matches =
+      (!query || row.dataset.search.includes(query)) &&
+      (!bookingFilters.status.value || row.dataset.status === bookingFilters.status.value) &&
+      (!bookingFilters.court.value || row.dataset.court === bookingFilters.court.value) &&
+      (!bookingFilters.payment.value || row.dataset.payment === bookingFilters.payment.value) &&
+      (!bookingFilters.time.value || row.dataset.start === bookingFilters.time.value)
+    row.classList.toggle('is-hidden', !matches)
+    if (matches) visible++
   })
+  bookingCount.textContent = visible + ' dari ' + bookingRows.length + ' booking ditampilkan'
+  if (bookingFilterEmpty) bookingFilterEmpty.classList.toggle('is-hidden', visible > 0 || bookingRows.length === 0)
+}
+
+Object.values(bookingFilters).forEach(function (control) {
+  control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', applyBookingFilters)
 })
+document.getElementById('booking-filter-reset').addEventListener('click', function () {
+  Object.values(bookingFilters).forEach(function (control) { control.value = '' })
+  applyBookingFilters()
+})
+applyBookingFilters()
 
 let pendingCancelForm = null
 function confirmCancel(form, code) {

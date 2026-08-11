@@ -80,6 +80,13 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
         })
       }
 
+      if ((context as any).mode === 'exact_slot' && !availableCourt && (context as any).alternatives?.length && customerPhone) {
+        await setConversationState(customerPhone, 'last_availability_lookup', {
+          date: (context as any).date,
+          duration_hours: intent.duration_hours ?? 1,
+        })
+      }
+
       if ((context as any).mode === 'daily_availability' && customerPhone) {
         await setConversationState(customerPhone, 'last_availability_lookup', {
           date: (context as any).date,

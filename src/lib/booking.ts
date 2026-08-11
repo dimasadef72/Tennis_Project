@@ -80,6 +80,27 @@ function bookingCode(date: string) {
   return `BMT-${compactDate}-${random}`
 }
 
+function operatingSlots(durationHours: number) {
+  const slots = []
+  const durationMinutes = durationHours * 60
+  for (let start = OPERATING_OPEN, end = addMinutes(start, durationMinutes); end <= OPERATING_CLOSE; start = addMinutes(start, 60), end = addMinutes(start, durationMinutes)) {
+    slots.push({ start_time: start, end_time: end })
+  }
+  return slots
+}
+
+function availableSlotsForDay(durationHours: number, activeCourts: { id: string; name: string }[], activeBookings: BookingRow[], excludeBookingId?: string) {
+  return operatingSlots(durationHours)
+    .map((slot) => ({
+      ...slot,
+      available_courts: activeCourts
+        .filter((court) => !activeBookings.some((booking) => booking.id !== excludeBookingId && booking.courtId === court.id && overlaps(slot.start_time, slot.end_time, booking)))
+        .map((court) => ({ court_number: courtNumber(court.name), court_name: court.name })),
+    }))
+    .filter((slot) => slot.available_courts.length > 0)
+    .slice(0, 5)
+}
+
 export async function createBookingFromWhatsApp(params: {
   intent: IntentDetectionResult
   customerName: string
@@ -127,6 +148,7 @@ export async function createBookingFromWhatsApp(params: {
     return {
       status: 'slot_unavailable',
       requested_slot: { date, start_time: startTime, end_time: endTime, duration_hours: params.intent.duration_hours },
+      alternatives: availableSlotsForDay(params.intent.duration_hours, candidateCourts, activeBookings).filter((slot) => slot.start_time !== startTime),
     }
   }
 
@@ -425,6 +447,7 @@ export async function proposeRescheduleFromWhatsApp(params: {
         start_time: nextStartTime,
         end_time: nextEndTime,
       },
+      alternatives: availableSlotsForDay(nextDurationHours, candidateCourts, activeBookings, pending.id).filter((slot) => slot.start_time !== nextStartTime),
     }
   }
 
