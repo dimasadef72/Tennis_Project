@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import type { Hono } from 'hono'
-import { db } from '../api/db/client'
-import { bookings, courts } from '../api/db/schema'
+import { db } from './db/client'
+import { bookings, courts } from './db/schema'
 
 const HOURS = { open: '08:00', close: '22:00', slotMinutes: 60 }
 const ACTIVE_STATUSES = ['pending', 'confirmed'] as const

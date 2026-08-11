@@ -1,11 +1,44 @@
 import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
-import { db } from '../api/db/client'
-import { bookings } from '../api/db/schema'
-import { isPaidMidtransStatus, isValidMidtransSignature } from '../api/lib/midtrans'
+import { db } from './db/client'
+import { bookings } from './db/schema'
+import { isPaidMidtransStatus, isValidMidtransSignature } from './lib/midtrans'
+import { getReplyText } from './lib/reply'
 import { registerAdminRoutes } from './admin'
 
 const app = new Hono()
+
+
+async function sendWhatsAppText(to: string, text: string) {
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
+
+  if (!phoneNumberId || !accessToken) {
+    console.error('Missing WhatsApp env')
+    return
+  }
+
+  const response = await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to,
+      type: 'text',
+      text: { body: text },
+    }),
+  })
+
+  if (!response.ok) {
+    console.error('WhatsApp send failed', response.status, await response.text())
+    return
+  }
+
+  console.log('WhatsApp send ok', await response.text())
+}
 
 function legalPage(title: string, body: string) {
   return `<!doctype html>
@@ -106,6 +139,8 @@ app.post('/webhook/midtrans', async (c) => {
     fraud_status: body?.fraud_status,
   })
 
+  if (!body?.order_id && !body?.signature_key) return c.text('OK')
+
   if (!isValidMidtransSignature(body)) {
     console.error('Invalid Midtrans signature', { order_id: body?.order_id })
     return c.text('Forbidden', 403)
@@ -144,12 +179,22 @@ app.post('/webhook/whatsapp', async (c) => {
   const contact = value?.contacts?.[0]
   const message = value?.messages?.[0]
 
+  console.log('WhatsApp webhook received', {
+    hasMessage: Boolean(message),
+    messageType: message?.type,
+    hasStatus: Boolean(value?.statuses?.[0]),
+  })
+
   if (message?.type === 'text') {
+    const name = contact?.profile?.name ?? 'Customer'
+
     console.log({
       phone: message.from,
-      name: contact?.profile?.name ?? 'Customer',
+      name,
       text: message.text?.body,
     })
+
+    await sendWhatsAppText(message.from, await getReplyText(name, message.text?.body ?? '', message.from))
   }
 
   return c.text('OK')
