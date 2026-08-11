@@ -36,7 +36,7 @@ export async function createMidtransPayment(params: {
       usage_limit: 1,
       expiry: {
         duration: Number(process.env.MIDTRANS_PAYMENT_EXPIRY_MINUTES ?? 15),
-        unit: 'minute',
+        unit: 'minutes',
       },
       enabled_payments: ['other_qris'],
       item_details: [
