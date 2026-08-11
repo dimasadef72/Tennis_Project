@@ -11,57 +11,85 @@ type ReceiptData = {
 }
 
 function pdfText(value: unknown) {
-  return String(value ?? '').replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)')
+  const slash = String.fromCharCode(92)
+  return String(value ?? '').replaceAll(slash, slash + slash).replaceAll('(', slash + '(').replaceAll(')', slash + ')')
 }
 
 export function buildReceiptPdf(data: ReceiptData) {
-  const row = (y: number, label: string, value: string) => [
-    '0.95 0.97 0.96 rg',
-    `72 ${y - 18} 130 28 re f`,
-    '0.98 0.98 0.98 rg',
-    `202 ${y - 18} 321 28 re f`,
-    '0.82 0.86 0.84 RG 0.5 w',
-    `72 ${y - 18} 451 28 re S`,
-    '0.22 0.29 0.27 rg',
-    `BT /F2 10 Tf 88 ${y - 1} Td (${pdfText(label)}) Tj ET`,
-    '0.08 0.10 0.12 rg',
-    `BT /F1 10 Tf 218 ${y - 1} Td (${pdfText(value)}) Tj ET`,
-  ].join('\n')
+  const text = (font: "F1" | "F2", size: number, x: number, y: number, value: unknown, color = "0.08 0.10 0.12") =>
+    `${color} rg BT /${font} ${size} Tf ${x} ${y} Td (${pdfText(value)}) Tj ET`
+
+  const row = (y: number, label: string, value: string, shade = "1 1 1") => [
+    `${shade} rg 72 ${y - 18} 451 34 re f`,
+    "0.88 0.90 0.89 RG 0.5 w",
+    `72 ${y - 18} 451 34 re S`,
+    text("F2", 9, 92, y + 1, label.toUpperCase(), "0.36 0.42 0.39"),
+    text("F1", 11, 260, y + 1, value),
+  ].join("\n")
 
   const content = [
-    '0.99 1 0.99 rg 0 0 595 842 re f',
-    '0.04 0.28 0.18 rg 0 742 595 100 re f',
-    '0.55 0.84 0.32 rg 72 740 110 4 re f',
-    '1 1 1 rg BT /F2 22 Tf 72 790 Td (BMTennis Receipt) Tj ET',
-    '0.82 0.93 0.87 rg BT /F1 10 Tf 72 768 Td (Bukti pembayaran booking lapangan tenis) Tj ET',
-    '0.82 0.93 0.87 rg BT /F2 12 Tf 420 790 Td (LUNAS) Tj ET',
-    '1 1 1 rg 72 580 451 120 re f',
-    '0.88 0.91 0.89 RG 1 w 72 580 451 120 re S',
-    '0.04 0.28 0.18 rg BT /F2 13 Tf 96 672 Td (Ringkasan Pembayaran) Tj ET',
-    `0.08 0.10 0.12 rg BT /F2 24 Tf 96 635 Td (${pdfText(data.amount)}) Tj ET`,
-    `0.35 0.39 0.38 rg BT /F1 10 Tf 96 612 Td (Kode booking: ${pdfText(data.bookingCode)}) Tj ET`,
-    `0.35 0.39 0.38 rg BT /F1 10 Tf 96 594 Td (Dibayar pada: ${pdfText(data.paidAt)}) Tj ET`,
-    '0.04 0.28 0.18 rg BT /F2 14 Tf 72 535 Td (Detail Booking) Tj ET',
-    row(500, 'Nama customer', data.customerName),
-    row(466, 'Nomor WhatsApp', data.customerPhone),
-    row(432, 'Lapangan', data.courtName),
-    row(398, 'Tanggal', data.bookingDate),
-    row(364, 'Jam', `${data.startTime}-${data.endTime}`),
-    row(330, 'Status', 'Pembayaran lunas'),
-    '0.35 0.39 0.38 rg BT /F1 9 Tf 72 92 Td (Receipt ini dibuat otomatis oleh sistem BMTennis setelah pembayaran diterima.) Tj ET',
-    '0.04 0.28 0.18 rg 72 74 451 2 re f',
-  ].join('\n')
+    "0.97 0.98 0.97 rg 0 0 595 842 re f",
+    "0.04 0.24 0.16 rg 0 704 595 138 re f",
+    "0.18 0.45 0.26 RG 1 w 344 724 150 92 re S",
+    "0.18 0.45 0.26 RG 0.8 w 419 724 0 92 re S",
+    "0.18 0.45 0.26 RG 0.8 w 344 770 150 0 re S",
+    "0.18 0.45 0.26 RG 0.8 w 382 724 0 92 re S",
+    "0.18 0.45 0.26 RG 0.8 w 456 724 0 92 re S",
+    "0.62 0.82 0.28 rg 72 704 451 5 re f",
+    "0.72 0.90 0.18 rg 494 761 m 503 761 511 753 511 744 c 511 735 503 727 494 727 c 485 727 477 735 477 744 c 477 753 485 761 494 761 c f",
+    "1 1 1 RG 1.2 w 486 758 m 492 753 492 735 486 730 c S",
+    "1 1 1 RG 1.2 w 502 758 m 496 753 496 735 502 730 c S",
+    text("F2", 24, 72, 786, "BMTennis", "1 1 1"),
+    text("F1", 11, 72, 766, "Bukti pembayaran resmi booking lapangan tenis", "0.83 0.92 0.86"),
+    text("F1", 9, 72, 746, `Receipt No. RCT-${data.bookingCode}`, "0.83 0.92 0.86"),
+    "0.88 0.98 0.91 rg 430 772 92 34 re f",
+    text("F2", 13, 457, 783, "PAID", "0.04 0.24 0.16"),
+
+    "1 1 1 rg 72 586 451 86 re f",
+    "0.88 0.90 0.89 RG 1 w 72 586 451 86 re S",
+    text("F2", 11, 96, 642, "Diterima dari", "0.36 0.42 0.39"),
+    text("F2", 17, 96, 616, data.customerName),
+    text("F1", 10, 96, 598, data.customerPhone, "0.36 0.42 0.39"),
+    text("F2", 11, 378, 642, "Tanggal bayar", "0.36 0.42 0.39"),
+    text("F1", 10, 378, 620, data.paidAt),
+
+    "0.04 0.24 0.16 rg 72 493 451 62 re f",
+    text("F1", 10, 96, 532, "Total pembayaran", "0.83 0.92 0.86"),
+    text("F2", 25, 96, 506, data.amount, "1 1 1"),
+    text("F1", 10, 378, 532, "Kode booking", "0.83 0.92 0.86"),
+    text("F2", 12, 378, 510, data.bookingCode, "1 1 1"),
+
+    "0.97 0.99 0.95 rg 384 422 139 54 re f",
+    "0.74 0.84 0.70 RG 0.8 w 398 430 96 34 re S",
+    "0.74 0.84 0.70 RG 0.6 w 446 430 0 34 re S",
+    "0.74 0.84 0.70 RG 0.6 w 398 447 96 0 re S",
+    text("F1", 8, 405, 411, "Court schedule", "0.36 0.42 0.39"),
+    text("F2", 14, 72, 455, "Detail Booking"),
+    row(420, "Lapangan", data.courtName, "1 1 1"),
+    row(384, "Tanggal", data.bookingDate, "0.98 0.99 0.98"),
+    row(348, "Jam", `${data.startTime}-${data.endTime}`, "1 1 1"),
+    row(312, "Status", "Pembayaran lunas", "0.98 0.99 0.98"),
+
+    "0.93 0.95 0.94 rg 72 170 451 72 re f",
+    "0.82 0.86 0.84 RG 0.75 w 72 170 451 72 re S",
+    text("F2", 11, 96, 215, "Catatan", "0.22 0.29 0.27"),
+    text("F1", 9, 96, 194, "Receipt ini dibuat otomatis setelah pembayaran diterima dan diverifikasi oleh sistem.", "0.36 0.42 0.39"),
+    text("F1", 9, 96, 179, "Simpan receipt ini sebagai bukti booking di Babatan Mukti Tennis.", "0.36 0.42 0.39"),
+
+    "0.04 0.24 0.16 rg 72 92 451 2 re f",
+    text("F1", 8, 72, 74, "Generated by BMTennis Assistant", "0.36 0.42 0.39"),
+  ].join("\n")
 
   const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>',
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
     `<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`,
   ]
 
-  let pdf = '%PDF-1.4\n'
+  let pdf = "%PDF-1.4\n"
   const offsets = [0]
   objects.forEach((object, index) => {
     offsets.push(Buffer.byteLength(pdf))
@@ -69,13 +97,13 @@ export function buildReceiptPdf(data: ReceiptData) {
   })
   const xref = Buffer.byteLength(pdf)
   pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
-  pdf += offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')
+  pdf += offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")
   pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`
 
   return new Response(pdf, {
     headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="receipt-${data.bookingCode}.pdf"`,
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename="receipt-${data.bookingCode}.pdf"`,
     },
   })
 }
