@@ -17,6 +17,10 @@ export type IntentDetectionResult = {
   booking_code: string | null
 }
 
+export type ConfirmationDetectionResult = {
+  is_confirmed: boolean
+}
+
 const emptyResult: IntentDetectionResult = {
   intent: 'unknown',
   date: null,
@@ -35,6 +39,10 @@ function isIntentResult(value: any): value is IntentDetectionResult {
     'general_help',
     'unknown',
   ].includes(value?.intent)
+}
+
+function isConfirmationResult(value: any): value is ConfirmationDetectionResult {
+  return typeof value?.is_confirmed === 'boolean'
 }
 
 function normalizeIntentResult(value: IntentDetectionResult) {
@@ -101,5 +109,43 @@ ${JSON.stringify({ current_date: currentDate, timezone: 'Asia/Jakarta', message:
   } catch (error) {
     console.error('OpenAI intent error', error)
     return emptyResult
+  }
+}
+
+
+export async function detectConfirmation(text: string, context: Record<string, unknown>): Promise<boolean> {
+  if (!process.env.OPENAI_API_KEY) {
+    console.error('Missing OPENAI_API_KEY')
+    return false
+  }
+
+  try {
+    const client = new OpenAI()
+    const model = process.env.OPENAI_MODEL ?? 'gpt-5.6-luna'
+    const response = await client.responses.create({
+      model,
+      input: `You are a confirmation classifier for BMTennis Assistant.
+Return JSON only.
+The backend is waiting for the customer to confirm a pending booking action.
+Decide whether the customer's latest message clearly confirms the pending action.
+Return true only when the message clearly means yes/continue/approve/change it/proceed.
+Return false when the message rejects, hesitates, asks a question, changes topic, or is ambiguous.
+Do not extract booking details.
+Do not answer the customer.
+
+Schema:
+{"is_confirmed":true|false}
+
+Input JSON:
+${JSON.stringify({ message: text, pending_action_context: context })}`,
+    })
+
+    console.log('OpenAI confirmation usage', response.usage)
+
+    const parsed = JSON.parse(response.output_text ?? '{}')
+    return isConfirmationResult(parsed) ? parsed.is_confirmed : false
+  } catch (error) {
+    console.error('OpenAI confirmation error', error)
+    return false
   }
 }

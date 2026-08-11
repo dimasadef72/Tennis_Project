@@ -1,7 +1,7 @@
 import { getAvailabilityContext } from './availability'
 import { clearConversationState, getConversationState, setConversationState } from './conversation-state'
 import { applyRescheduleFromState, createBookingFromState, createBookingFromWhatsApp, preparePendingPayment, proposeRescheduleFromWhatsApp } from './booking'
-import { detectIntent, type IntentDetectionResult } from './intent'
+import { detectConfirmation, detectIntent, type IntentDetectionResult } from './intent'
 import { generateResponse } from './response'
 
 function buildGeneralHelpContext() {
@@ -96,17 +96,13 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
   return {}
 }
 
-function isAffirmative(text: string) {
-  return /^(iya|ya|y|ok|oke|lanjut|gas|jadi|boleh|confirm)$/i.test(text.trim())
-}
-
 export async function getReplyText(name: string, text: string, phone = '') {
   const detectedIntent = await detectIntent(text)
   const state = await getConversationState(phone)
-  const intent: IntentDetectionResult = ['awaiting_booking_confirmation', 'awaiting_reschedule_confirmation'].includes(state?.state ?? '') && isAffirmative(text)
-    ? { ...detectedIntent, intent: 'confirm_booking' }
-    : detectedIntent
-  console.log('Intent detected', { input: text, result: intent })
+  const isAwaitingConfirmation = ['awaiting_booking_confirmation', 'awaiting_reschedule_confirmation'].includes(state?.state ?? '')
+  const isConfirmed = isAwaitingConfirmation ? await detectConfirmation(text, { state: state?.state, payload: state?.payload }) : false
+  const intent: IntentDetectionResult = isConfirmed ? { ...detectedIntent, intent: 'confirm_booking' } : detectedIntent
+  console.log('Intent detected', { input: text, result: intent, state: state?.state, isConfirmed })
 
   const backendContext = await contextForIntent(intent, name, phone)
   console.log('Backend context', { intent: intent.intent, backendContext })
