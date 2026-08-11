@@ -1,4 +1,4 @@
-import { and, eq, or } from 'drizzle-orm'
+import { and, eq, inArray, or } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { db } from './db/client'
 import { bookings, courts, whitelistedNumbers } from './db/schema'
@@ -255,7 +255,7 @@ app.post('/webhook/midtrans', async (c) => {
         paymentReference: body.order_id,
         updatedAt: new Date(),
       })
-      .where(and(bookingPaymentMatch, eq(bookings.paymentStatus, 'pending')))
+      .where(and(bookingPaymentMatch, inArray(bookings.paymentStatus, ['pending', 'expired'])))
       .returning({ bookingCode: bookings.bookingCode, customerPhone: bookings.customerPhone, status: bookings.status, paymentStatus: bookings.paymentStatus })
 
     console.log('Midtrans paid update', { order_id: body.order_id, updated })

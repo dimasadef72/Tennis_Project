@@ -46,6 +46,7 @@ export const bookings = pgTable(
     paymentReference: text('payment_reference'),
     paymentAmount: integer('payment_amount'),
     paymentUrl: text('payment_url'),
+    paymentCreatedAt: timestamp('payment_created_at', { withTimezone: true }),
     paidAt: timestamp('paid_at', { withTimezone: true }),
     notes: text('notes'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

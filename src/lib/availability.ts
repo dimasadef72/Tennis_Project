@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray } from 'drizzle-orm'
 import { db } from '../db/client'
 import { bookings, courts } from '../db/schema'
+import { expireStalePendingBookings } from './booking'
 import type { IntentDetectionResult } from './intent'
 
 const OPERATING_HOURS = {
@@ -29,6 +30,10 @@ function normalizeTime(time: string) {
   return time.slice(0, 5)
 }
 
+function isWholeHour(time: string) {
+  return normalizeTime(time).endsWith(':00')
+}
+
 function slotOverlaps(start: string, end: string, booking: Booking) {
   return start < normalizeTime(booking.endTime) && end > normalizeTime(booking.startTime)
 }
@@ -53,6 +58,7 @@ function operatingSlots(durationHours: number) {
 }
 
 export async function getAvailabilityContext(intent: IntentDetectionResult) {
+  await expireStalePendingBookings()
   const date = intent.date ?? todayInJakarta()
   const durationHours = intent.duration_hours ?? 1
 
@@ -69,6 +75,7 @@ export async function getAvailabilityContext(intent: IntentDetectionResult) {
 
   if (intent.start_time) {
     const startTime = intent.start_time
+    if (!isWholeHour(startTime)) return { mode: 'invalid_time', allowed_minutes: '00' }
     const endTime = addMinutes(startTime, durationHours * 60)
     const availableCourts = activeCourts
       .filter((court) => !intent.court_number || courtNumber(court.name) === intent.court_number)

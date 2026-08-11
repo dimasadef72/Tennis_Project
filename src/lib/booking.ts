@@ -1,10 +1,37 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, lt, or } from 'drizzle-orm'
 import { db } from '../db/client'
 import { bookings, courts } from '../db/schema'
 import type { IntentDetectionResult } from './intent'
 import { createMidtransPayment } from './midtrans'
 
 const ACTIVE_STATUSES = ['pending', 'confirmed'] as const
+
+function bookingHoldMinutes() {
+  return Number(process.env.BOOKING_HOLD_MINUTES ?? 5)
+}
+
+function paymentExpiryMinutes() {
+  return Number(process.env.MIDTRANS_PAYMENT_EXPIRY_MINUTES ?? 10)
+}
+
+export async function expireStalePendingBookings() {
+  const now = Date.now()
+  const holdCutoff = new Date(now - bookingHoldMinutes() * 60_000)
+  const paymentCutoff = new Date(now - paymentExpiryMinutes() * 60_000)
+
+  return db
+    .update(bookings)
+    .set({ status: 'expired', paymentStatus: 'expired', updatedAt: new Date() })
+    .where(and(
+      eq(bookings.status, 'pending'),
+      eq(bookings.notes, 'Created from WhatsApp'),
+      or(
+        and(eq(bookings.paymentStatus, 'unpaid'), lt(bookings.createdAt, holdCutoff)),
+        and(eq(bookings.paymentStatus, 'pending'), lt(bookings.paymentCreatedAt, paymentCutoff)),
+      ),
+    ))
+    .returning({ bookingCode: bookings.bookingCode })
+}
 
 type BookingRow = typeof bookings.$inferSelect
 
@@ -20,6 +47,10 @@ function addMinutes(time: string, minutes: number) {
 
 function normalizeTime(time: string) {
   return time.slice(0, 5)
+}
+
+function isWholeHour(time: string) {
+  return normalizeTime(time).endsWith(':00')
 }
 
 function overlaps(start: string, end: string, booking: BookingRow) {
@@ -53,8 +84,11 @@ export async function createBookingFromWhatsApp(params: {
     }
   }
 
+  await expireStalePendingBookings()
+
   const date = params.intent.date ?? todayInJakarta()
   const startTime = params.intent.start_time
+  if (!isWholeHour(startTime)) return { status: 'invalid_time', allowed_minutes: '00' }
   const endTime = addMinutes(startTime, params.intent.duration_hours * 60)
 
   const activeCourts = await db
@@ -116,8 +150,11 @@ export async function createBookingFromWhatsApp(params: {
   }
 }
 
+
 export async function preparePendingPayment(customerPhone: string) {
   if (!customerPhone) return { status: 'missing_customer_phone' }
+
+  await expireStalePendingBookings()
 
   const [booking] = await db
     .select({
@@ -154,6 +191,8 @@ export async function preparePendingPayment(customerPhone: string) {
     })
     paymentUrl = payment.payment_url
 
+    const paymentCreatedAt = new Date()
+
     await db
       .update(bookings)
       .set({
@@ -161,7 +200,8 @@ export async function preparePendingPayment(customerPhone: string) {
         paymentReference: payment.order_id,
         paymentAmount: amount,
         paymentUrl,
-        updatedAt: new Date(),
+        paymentCreatedAt,
+        updatedAt: paymentCreatedAt,
       })
       .where(eq(bookings.id, booking.id))
   }
@@ -203,6 +243,8 @@ export async function createBookingFromState(params: {
 }
 
 async function latestPendingBooking(customerPhone: string) {
+  await expireStalePendingBookings()
+
   const [booking] = await db
     .select({
       id: bookings.id,
