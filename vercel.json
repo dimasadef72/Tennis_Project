@@ -3,6 +3,10 @@
     {
       "source": "/webhook/whatsapp",
       "destination": "/api/webhook/whatsapp"
+    },
+    {
+      "source": "/webhook/midtrans",
+      "destination": "/api/webhook/midtrans"
     }
   ]
 }

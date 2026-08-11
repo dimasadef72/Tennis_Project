@@ -4,6 +4,16 @@ import { applyRescheduleFromState, createBookingFromState, createBookingFromWhat
 import { detectConfirmation, detectIntent, type IntentDetectionResult } from './intent'
 import { generateResponse } from './response'
 
+function paymentStatePayload(result: any) {
+  if (result?.status === 'created' || result?.status === 'rescheduled') return result.booking
+  return null
+}
+
+async function setPaymentConfirmationState(customerPhone: string, result: any) {
+  const payload = paymentStatePayload(result)
+  if (customerPhone && payload) await setConversationState(customerPhone, 'awaiting_payment_confirmation', payload)
+}
+
 function buildGeneralHelpContext() {
   return {
     supported_actions: ['cek jadwal lapangan', 'booking lapangan tenis'],
@@ -63,7 +73,9 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
         return reschedule
       }
 
-      return await createBookingFromWhatsApp({ intent: mergedIntent, customerName, customerPhone })
+      const result = await createBookingFromWhatsApp({ intent: mergedIntent, customerName, customerPhone })
+      await setPaymentConfirmationState(customerPhone, result)
+      return result
     } catch (error) {
       console.error('Create booking error', error)
       return { status: 'booking_unavailable' }
@@ -77,13 +89,21 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
       if (state?.state === 'awaiting_booking_confirmation') {
         const result = await createBookingFromState({ state, customerName, customerPhone })
         await clearConversationState(customerPhone)
+        await setPaymentConfirmationState(customerPhone, result)
         return { ...result, source: 'conversation_state' }
       }
 
       if (state?.state === 'awaiting_reschedule_confirmation') {
         const result = await applyRescheduleFromState(state)
         await clearConversationState(customerPhone)
+        await setPaymentConfirmationState(customerPhone, result)
         return { ...result, source: 'conversation_state' }
+      }
+
+      if (state?.state === 'awaiting_payment_confirmation') {
+        const result = await preparePendingPayment(customerPhone)
+        await clearConversationState(customerPhone)
+        return result
       }
 
       return await preparePendingPayment(customerPhone)
@@ -97,11 +117,13 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
 }
 
 export async function getReplyText(name: string, text: string, phone = '') {
-  const detectedIntent = await detectIntent(text)
   const state = await getConversationState(phone)
-  const isAwaitingConfirmation = ['awaiting_booking_confirmation', 'awaiting_reschedule_confirmation'].includes(state?.state ?? '')
+  const isAwaitingConfirmation = ['awaiting_booking_confirmation', 'awaiting_reschedule_confirmation', 'awaiting_payment_confirmation'].includes(state?.state ?? '')
   const isConfirmed = isAwaitingConfirmation ? await detectConfirmation(text, { state: state?.state, payload: state?.payload }) : false
-  const intent: IntentDetectionResult = isConfirmed ? { ...detectedIntent, intent: 'confirm_booking' } : detectedIntent
+  const intent: IntentDetectionResult = isConfirmed
+    ? { intent: 'confirm_booking', date: null, start_time: null, duration_hours: null, court_number: null, booking_code: null }
+    : await detectIntent(text)
+
   console.log('Intent detected', { input: text, result: intent, state: state?.state, isConfirmed })
 
   const backendContext = await contextForIntent(intent, name, phone)

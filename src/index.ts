@@ -1,4 +1,8 @@
+import { eq } from 'drizzle-orm'
 import { Hono } from 'hono'
+import { db } from '../api/db/client'
+import { bookings } from '../api/db/schema'
+import { isPaidMidtransStatus, isValidMidtransSignature } from '../api/lib/midtrans'
 import { registerAdminRoutes } from './admin'
 
 const app = new Hono()
@@ -92,6 +96,35 @@ app.get('/data-deletion', (c) => c.html(legalPage('Data Deletion', `
   <p>Deletion requests are reviewed and processed within a reasonable time after verification.</p>
 `)))
 
+
+
+app.post('/webhook/midtrans', async (c) => {
+  const body = await c.req.json()
+  console.log('Midtrans webhook received', {
+    order_id: body?.order_id,
+    transaction_status: body?.transaction_status,
+    fraud_status: body?.fraud_status,
+  })
+
+  if (!isValidMidtransSignature(body)) {
+    console.error('Invalid Midtrans signature', { order_id: body?.order_id })
+    return c.text('Forbidden', 403)
+  }
+
+  if (isPaidMidtransStatus(body)) {
+    await db
+      .update(bookings)
+      .set({
+        status: 'confirmed',
+        paymentStatus: 'paid',
+        paidAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.bookingCode, body.order_id))
+  }
+
+  return c.text('OK')
+})
 
 app.get('/webhook/whatsapp', (c) => {
   const mode = c.req.query('hub.mode')

@@ -2,6 +2,7 @@ import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { db } from '../db/client'
 import { bookings, courts } from '../db/schema'
 import type { IntentDetectionResult } from './intent'
+import { createMidtransPayment } from './midtrans'
 
 const ACTIVE_STATUSES = ['pending', 'confirmed'] as const
 
@@ -122,10 +123,13 @@ export async function preparePendingPayment(customerPhone: string) {
     .select({
       id: bookings.id,
       bookingCode: bookings.bookingCode,
+      customerName: bookings.customerName,
+      customerPhone: bookings.customerPhone,
       bookingDate: bookings.bookingDate,
       startTime: bookings.startTime,
       endTime: bookings.endTime,
       status: bookings.status,
+      paymentUrl: bookings.paymentUrl,
       courtName: courts.name,
     })
     .from(bookings)
@@ -136,9 +140,33 @@ export async function preparePendingPayment(customerPhone: string) {
 
   if (!booking) return { status: 'no_pending_booking' }
 
+  const hourlyRate = Number(process.env.BOOKING_HOURLY_RATE ?? 100000)
+  const durationHours = hoursBetween(booking.startTime, booking.endTime)
+  const amount = Math.round(hourlyRate * durationHours)
+  let paymentUrl = booking.paymentUrl
+
+  if (!paymentUrl) {
+    const payment = await createMidtransPayment({
+      orderId: booking.bookingCode,
+      amount,
+      customerName: booking.customerName,
+      customerPhone: booking.customerPhone,
+    })
+    paymentUrl = payment.payment_url
+
+    await db
+      .update(bookings)
+      .set({
+        paymentStatus: 'pending',
+        paymentReference: payment.order_id,
+        paymentUrl,
+        updatedAt: new Date(),
+      })
+      .where(eq(bookings.id, booking.id))
+  }
+
   return {
-    status: 'payment_not_ready',
-    reason: 'payment_gateway_not_configured',
+    status: 'payment_link_created',
     booking: {
       id: booking.id,
       booking_code: booking.bookingCode,
@@ -147,6 +175,8 @@ export async function preparePendingPayment(customerPhone: string) {
       start_time: normalizeTime(booking.startTime),
       end_time: normalizeTime(booking.endTime),
       status: booking.status,
+      amount,
+      payment_url: paymentUrl,
     },
   }
 }
