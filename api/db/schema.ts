@@ -3,6 +3,7 @@ import {
   boolean,
   date,
   index,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -52,3 +53,12 @@ export const bookings = pgTable(
       .where(sql`${table.status} in ('pending', 'confirmed')`),
   ],
 )
+
+
+export const conversationStates = pgTable('conversation_states', {
+  phone: text('phone').primaryKey(),
+  state: text('state').notNull(),
+  payload: jsonb('payload').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})

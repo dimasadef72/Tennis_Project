@@ -1,5 +1,6 @@
 import { getAvailabilityContext } from './availability'
-import { createBookingFromWhatsApp } from './booking'
+import { clearConversationState, getConversationState, setConversationState } from './conversation-state'
+import { createBookingFromState, createBookingFromWhatsApp, preparePendingPayment } from './booking'
 import { detectIntent, type IntentDetectionResult } from './intent'
 import { generateResponse } from './response'
 
@@ -16,7 +17,19 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
 
   if (intent.intent === 'check_availability') {
     try {
-      return await getAvailabilityContext(intent)
+      const context = await getAvailabilityContext(intent)
+      const availableCourt = (context as any).courts?.find((court: any) => court.status === 'available')
+
+      if ((context as any).mode === 'exact_slot' && availableCourt && customerPhone) {
+        await setConversationState(customerPhone, 'awaiting_booking_confirmation', {
+          date: intent.date,
+          start_time: intent.start_time,
+          duration_hours: intent.duration_hours ?? 1,
+          court_number: availableCourt.court_number,
+        })
+      }
+
+      return context
     } catch (error) {
       console.error('Availability context error', error)
       return { error: 'availability_unavailable' }
@@ -32,11 +45,36 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
     }
   }
 
+  if (intent.intent === 'confirm_booking') {
+    try {
+      const state = await getConversationState(customerPhone)
+
+      if (state?.state === 'awaiting_booking_confirmation') {
+        const result = await createBookingFromState({ state, customerName, customerPhone })
+        await clearConversationState(customerPhone)
+        return { ...result, source: 'conversation_state' }
+      }
+
+      return await preparePendingPayment(customerPhone)
+    } catch (error) {
+      console.error('Prepare payment error', error)
+      return { status: 'payment_unavailable' }
+    }
+  }
+
   return {}
 }
 
+function isAffirmative(text: string) {
+  return /^(iya|ya|y|ok|oke|lanjut|gas|jadi|boleh|confirm)$/i.test(text.trim())
+}
+
 export async function getReplyText(name: string, text: string, phone = '') {
-  const intent = await detectIntent(text)
+  const detectedIntent = await detectIntent(text)
+  const state = await getConversationState(phone)
+  const intent: IntentDetectionResult = state?.state === 'awaiting_booking_confirmation' && isAffirmative(text)
+    ? { ...detectedIntent, intent: 'confirm_booking' }
+    : detectedIntent
   console.log('Intent detected', { input: text, result: intent })
 
   const backendContext = await contextForIntent(intent, name, phone)

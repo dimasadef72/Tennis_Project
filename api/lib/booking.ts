@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { db } from '../db/client'
 import { bookings, courts } from '../db/schema'
 import type { IntentDetectionResult } from './intent'
@@ -114,4 +114,61 @@ export async function createBookingFromWhatsApp(params: {
       status: 'pending',
     },
   }
+}
+
+export async function preparePendingPayment(customerPhone: string) {
+  if (!customerPhone) return { status: 'missing_customer_phone' }
+
+  const [booking] = await db
+    .select({
+      id: bookings.id,
+      bookingCode: bookings.bookingCode,
+      bookingDate: bookings.bookingDate,
+      startTime: bookings.startTime,
+      endTime: bookings.endTime,
+      status: bookings.status,
+      courtName: courts.name,
+    })
+    .from(bookings)
+    .innerJoin(courts, eq(bookings.courtId, courts.id))
+    .where(and(eq(bookings.customerPhone, customerPhone), eq(bookings.status, 'pending')))
+    .orderBy(desc(bookings.createdAt))
+    .limit(1)
+
+  if (!booking) return { status: 'no_pending_booking' }
+
+  return {
+    status: 'payment_not_ready',
+    reason: 'payment_gateway_not_configured',
+    booking: {
+      id: booking.id,
+      booking_code: booking.bookingCode,
+      court_name: booking.courtName,
+      booking_date: booking.bookingDate,
+      start_time: normalizeTime(booking.startTime),
+      end_time: normalizeTime(booking.endTime),
+      status: booking.status,
+    },
+  }
+}
+
+
+export async function createBookingFromState(params: {
+  state: any
+  customerName: string
+  customerPhone: string
+}) {
+  const payload = params.state?.payload ?? params.state
+  return createBookingFromWhatsApp({
+    customerName: params.customerName,
+    customerPhone: params.customerPhone,
+    intent: {
+      intent: 'request_booking',
+      date: payload.date ?? null,
+      start_time: payload.start_time ?? null,
+      duration_hours: payload.duration_hours ?? null,
+      court_number: payload.court_number ?? null,
+      booking_code: null,
+    },
+  })
 }
