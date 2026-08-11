@@ -41,7 +41,6 @@ export async function createBookingFromWhatsApp(params: {
   customerPhone: string
 }) {
   const missing = []
-  if (!params.intent.date) missing.push('tanggal')
   if (!params.intent.start_time) missing.push('jam mulai')
   if (!params.intent.duration_hours) missing.push('durasi')
 
@@ -152,7 +151,6 @@ export async function preparePendingPayment(customerPhone: string) {
   }
 }
 
-
 export async function createBookingFromState(params: {
   state: any
   customerName: string
@@ -171,4 +169,143 @@ export async function createBookingFromState(params: {
       booking_code: null,
     },
   })
+}
+
+async function latestPendingBooking(customerPhone: string) {
+  const [booking] = await db
+    .select({
+      id: bookings.id,
+      bookingCode: bookings.bookingCode,
+      bookingDate: bookings.bookingDate,
+      startTime: bookings.startTime,
+      endTime: bookings.endTime,
+      courtId: bookings.courtId,
+      courtName: courts.name,
+    })
+    .from(bookings)
+    .innerJoin(courts, eq(bookings.courtId, courts.id))
+    .where(and(eq(bookings.customerPhone, customerPhone), eq(bookings.status, 'pending')))
+    .orderBy(desc(bookings.createdAt))
+    .limit(1)
+
+  return booking
+}
+
+function hoursBetween(start: string, end: string) {
+  const [startHour, startMinute] = normalizeTime(start).split(':').map(Number)
+  const [endHour, endMinute] = normalizeTime(end).split(':').map(Number)
+  return ((endHour * 60 + endMinute) - (startHour * 60 + startMinute)) / 60
+}
+
+export async function proposeRescheduleFromWhatsApp(params: {
+  intent: IntentDetectionResult
+  customerPhone: string
+}) {
+  const pending = await latestPendingBooking(params.customerPhone)
+  if (!pending) return null
+
+  const nextDate = params.intent.date ?? pending.bookingDate
+  const nextStartTime = params.intent.start_time ?? normalizeTime(pending.startTime)
+  const nextDurationHours = params.intent.duration_hours ?? hoursBetween(pending.startTime, pending.endTime)
+  const nextEndTime = addMinutes(nextStartTime, nextDurationHours * 60)
+
+  const activeCourts = await db
+    .select({ id: courts.id, name: courts.name })
+    .from(courts)
+    .where(eq(courts.isActive, true))
+    .orderBy(asc(courts.name))
+
+  const candidateCourts = activeCourts.filter((court) => !params.intent.court_number || courtNumber(court.name) === params.intent.court_number)
+  if (candidateCourts.length === 0) return { status: 'court_not_found', requested_court_number: params.intent.court_number }
+
+  const activeBookings = await db
+    .select()
+    .from(bookings)
+    .where(and(eq(bookings.bookingDate, nextDate), inArray(bookings.status, ACTIVE_STATUSES)))
+
+  const selectedCourt = candidateCourts.find(
+    (court) => !activeBookings.some((booking) => booking.id !== pending.id && booking.courtId === court.id && overlaps(nextStartTime, nextEndTime, booking)),
+  )
+
+  if (!selectedCourt) {
+    return {
+      status: 'reschedule_unavailable',
+      current_booking: {
+        booking_code: pending.bookingCode,
+        court_name: pending.courtName,
+        booking_date: pending.bookingDate,
+        start_time: normalizeTime(pending.startTime),
+        end_time: normalizeTime(pending.endTime),
+      },
+      requested_booking: {
+        court_name: params.intent.court_number ? `Lapangan ${params.intent.court_number}` : 'Lapangan tersedia',
+        booking_date: nextDate,
+        start_time: nextStartTime,
+        end_time: nextEndTime,
+      },
+    }
+  }
+
+  return {
+    status: 'awaiting_reschedule_confirmation',
+    current_booking: {
+      id: pending.id,
+      booking_code: pending.bookingCode,
+      court_id: pending.courtId,
+      court_name: pending.courtName,
+      booking_date: pending.bookingDate,
+      start_time: normalizeTime(pending.startTime),
+      end_time: normalizeTime(pending.endTime),
+    },
+    requested_booking: {
+      court_id: selectedCourt.id,
+      court_name: selectedCourt.name,
+      booking_date: nextDate,
+      start_time: nextStartTime,
+      end_time: nextEndTime,
+      duration_hours: nextDurationHours,
+    },
+  }
+}
+
+export async function applyRescheduleFromState(state: any) {
+  const payload = state?.payload ?? state
+  const current = payload.current_booking
+  const requested = payload.requested_booking
+
+  if (!current?.id || !requested?.court_id || !requested?.booking_date || !requested?.start_time || !requested?.end_time) {
+    return { status: 'reschedule_unavailable' }
+  }
+
+  const activeBookings = await db
+    .select()
+    .from(bookings)
+    .where(and(eq(bookings.bookingDate, requested.booking_date), inArray(bookings.status, ACTIVE_STATUSES)))
+
+  const isBooked = activeBookings.some((booking) => booking.id !== current.id && booking.courtId === requested.court_id && overlaps(requested.start_time, requested.end_time, booking))
+  if (isBooked) return { status: 'reschedule_unavailable', requested_booking: requested }
+
+  const [updated] = await db
+    .update(bookings)
+    .set({
+      courtId: requested.court_id,
+      bookingDate: requested.booking_date,
+      startTime: requested.start_time,
+      endTime: requested.end_time,
+      updatedAt: new Date(),
+    })
+    .where(eq(bookings.id, current.id))
+    .returning({ bookingCode: bookings.bookingCode, status: bookings.status })
+
+  return {
+    status: 'rescheduled',
+    booking: {
+      booking_code: updated.bookingCode,
+      court_name: requested.court_name,
+      booking_date: requested.booking_date,
+      start_time: requested.start_time,
+      end_time: requested.end_time,
+      status: updated.status,
+    },
+  }
 }

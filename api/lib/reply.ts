@@ -1,6 +1,6 @@
 import { getAvailabilityContext } from './availability'
 import { clearConversationState, getConversationState, setConversationState } from './conversation-state'
-import { createBookingFromState, createBookingFromWhatsApp, preparePendingPayment } from './booking'
+import { applyRescheduleFromState, createBookingFromState, createBookingFromWhatsApp, preparePendingPayment, proposeRescheduleFromWhatsApp } from './booking'
 import { detectIntent, type IntentDetectionResult } from './intent'
 import { generateResponse } from './response'
 
@@ -55,6 +55,14 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
           }
         : intent
 
+      const reschedule = await proposeRescheduleFromWhatsApp({ intent: mergedIntent, customerPhone })
+      if (reschedule) {
+        if ((reschedule as any).status === 'awaiting_reschedule_confirmation') {
+          await setConversationState(customerPhone, 'awaiting_reschedule_confirmation', reschedule)
+        }
+        return reschedule
+      }
+
       return await createBookingFromWhatsApp({ intent: mergedIntent, customerName, customerPhone })
     } catch (error) {
       console.error('Create booking error', error)
@@ -68,6 +76,12 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
 
       if (state?.state === 'awaiting_booking_confirmation') {
         const result = await createBookingFromState({ state, customerName, customerPhone })
+        await clearConversationState(customerPhone)
+        return { ...result, source: 'conversation_state' }
+      }
+
+      if (state?.state === 'awaiting_reschedule_confirmation') {
+        const result = await applyRescheduleFromState(state)
         await clearConversationState(customerPhone)
         return { ...result, source: 'conversation_state' }
       }
@@ -89,7 +103,7 @@ function isAffirmative(text: string) {
 export async function getReplyText(name: string, text: string, phone = '') {
   const detectedIntent = await detectIntent(text)
   const state = await getConversationState(phone)
-  const intent: IntentDetectionResult = state?.state === 'awaiting_booking_confirmation' && isAffirmative(text)
+  const intent: IntentDetectionResult = ['awaiting_booking_confirmation', 'awaiting_reschedule_confirmation'].includes(state?.state ?? '') && isAffirmative(text)
     ? { ...detectedIntent, intent: 'confirm_booking' }
     : detectedIntent
   console.log('Intent detected', { input: text, result: intent })
