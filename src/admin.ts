@@ -32,7 +32,7 @@ function formatUsd(amount: number) {
 function areaChart(days: string[], values: number[], options: { id: string; format: 'usd' | 'idr' }) {
   const width = 640
   const height = 160
-  const padding = { top: 14, x: 4, bottom: 26 }
+  const padding = { top: 14, x: 4, bottom: 8 }
   const innerWidth = width - padding.x * 2
   const innerHeight = height - padding.top - padding.bottom
   const max = Math.max(...values, 0.000001)
@@ -59,10 +59,10 @@ function areaChart(days: string[], values: number[], options: { id: string; form
 
   const dayLabels = points
     .map((point) => {
-      const label = new Date(`${point.day}T00:00:00Z`).toLocaleDateString('id-ID', { weekday: 'short', timeZone: 'UTC' })
-      return `<text x="${point.x.toFixed(1)}" y="${height - 6}" text-anchor="middle" font-size="10" style="fill:var(--muted2)">${escapeHtml(label)}</text>`
+      const label = new Date(point.day + "T00:00:00Z").toLocaleDateString("id-ID", { weekday: "short", timeZone: "UTC" })
+      return "<span style=\"left:" + ((point.x / width) * 100).toFixed(2) + "%\">" + escapeHtml(label) + "</span>"
     })
-    .join('')
+    .join("")
 
   const pointData = points.map((point) => ({ x: point.x, y: point.y, day: point.day, value: point.value }))
 
@@ -76,8 +76,8 @@ function areaChart(days: string[], values: number[], options: { id: string; form
       <path d="${linePath}" fill="none" style="stroke:var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       <line class="area-chart-guide" x1="0" y1="${padding.top}" x2="0" y2="${floorY.toFixed(1)}" style="display:none"/>
       <circle class="area-chart-dot" r="4" style="display:none"/>
-      ${dayLabels}
     </svg>
+    <div class="area-chart-labels">${dayLabels}</div>
     <div class="area-chart-tooltip" style="display:none"></div>
   </div>`
 }
@@ -196,6 +196,16 @@ function normalizeTime(time: string) {
   return time.slice(0, 5)
 }
 
+function isWholeHour(time: string) {
+  return normalizeTime(time).endsWith(':00')
+}
+
+function isValidBookingWindow(start: string, end: string) {
+  const normalizedStart = normalizeTime(start)
+  const normalizedEnd = normalizeTime(end)
+  return isWholeHour(normalizedStart) && isWholeHour(normalizedEnd) && normalizedStart >= HOURS.open && normalizedStart < HOURS.close && normalizedEnd > normalizedStart && normalizedEnd <= HOURS.close
+}
+
 function overlaps(start: string, end: string, booking: BookingRow) {
   return start < normalizeTime(booking.endTime) && end > normalizeTime(booking.startTime)
 }
@@ -252,13 +262,13 @@ function renderLogin(error?: string) {
   --ease:cubic-bezier(.4,0,.2,1)
 }
 *{box-sizing:border-box}
-body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background-color:var(--bg);background-image:linear-gradient(rgba(243,245,240,.6),rgba(243,245,240,.6)),url('/assets/background.png');background-size:cover;background-position:center;background-repeat:no-repeat;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:-.01em}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background-color:var(--bg);background-image:linear-gradient(rgba(243,245,240,.42),rgba(243,245,240,.42)),url('/assets/background.png');background-size:cover;background-position:center;background-repeat:no-repeat;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:-.01em}
 .card{width:100%;max-width:368px;background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:34px 30px;animation:rise .35s var(--ease)}
 @keyframes rise{from{opacity:0;transform:translateY(10px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
 .mark{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#108058,#0a5c3f);display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:16px;box-shadow:0 10px 22px rgba(13,122,83,.28)}
 .mark svg{width:22px;height:22px}
-.card h1{font-size:21px;margin:0 0 4px;font-weight:800;letter-spacing:-.02em}
-.card p{margin:0 0 24px;color:var(--muted);font-size:13.5px}
+.card h1{font-size:26px;line-height:1.05;margin:0 0 7px;font-weight:850;letter-spacing:-.03em;background:linear-gradient(135deg,#071018 0%,#0d7a53 58%,#9a6b00 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.card p{margin:0 0 24px;color:var(--muted);font-size:14.5px;line-height:1.45;font-weight:450}
 .card label{display:grid;gap:6px;color:var(--muted);font-size:12.5px;margin-bottom:14px}
 .card label span{font-weight:680;color:#33403a}
 .card input{height:44px;border:1px solid var(--line);border-radius:var(--radius-sm);padding:0 13px;background:#fff;color:var(--ink);font:inherit;outline:none;width:100%;transition:border-color .12s var(--ease),box-shadow .12s var(--ease)}
@@ -372,10 +382,10 @@ function renderAdmin(params: {
   const whitelistList = params.whitelistRows.length
     ? params.whitelistRows
         .map(
-          (row) => `<tr><td>${escapeHtml(row.phone)}</td><td><form method="post" action="/admin/whitelist/delete"><input type="hidden" name="phone" value="${escapeHtml(row.phone)}"><button class="small-button" type="submit">Hapus</button></form></td></tr>`,
+          (row) => `<li class="whitelist-item"><span class="whitelist-phone">${escapeHtml(row.phone)}</span><form method="post" action="/admin/whitelist/delete"><input type="hidden" name="phone" value="${escapeHtml(row.phone)}"><button class="small-button" type="submit">Hapus</button></form></li>`,
         )
         .join('')
-    : '<tr><td colspan="2" class="empty">Whitelist kosong. Semua nomor masih boleh memakai bot.</td></tr>'
+    : '<li class="whitelist-empty">Whitelist kosong. Semua nomor masih boleh memakai bot.</li>'
 
   return `<!doctype html>
 <html lang="id">
@@ -399,22 +409,42 @@ function renderAdmin(params: {
   --ease:cubic-bezier(.4,0,.2,1)
 }
 *{box-sizing:border-box}
-body{margin:0;background-color:var(--bg);background-image:linear-gradient(rgba(243,245,240,.6),rgba(243,245,240,.6)),url('/assets/background.png');background-size:cover;background-position:top right;background-repeat:no-repeat;background-attachment:fixed;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:-.01em}
+body{margin:0;background-color:var(--bg);background-image:linear-gradient(rgba(243,245,240,.42),rgba(243,245,240,.42)),url('/assets/background.png');background-size:cover;background-position:top right;background-repeat:no-repeat;background-attachment:fixed;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:-.01em}
 main{max-width:1360px;margin:0 auto;padding:36px 24px 72px;animation:fade-in .4s var(--ease)}
 @keyframes fade-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 a{color:inherit}
 
-.top{display:flex;gap:18px;align-items:flex-end;justify-content:space-between;margin-bottom:26px}
-.admin-actions{display:flex;align-items:center;gap:12px}
+.top{display:flex;gap:18px;align-items:flex-end;justify-content:space-between;margin-bottom:26px;position:relative;z-index:70}
+.admin-actions{display:flex;align-items:center;gap:12px;position:relative;z-index:70}
 .brand{display:flex;align-items:center;gap:13px}.brand-logo{width:46px;height:46px;flex:none;filter:drop-shadow(0 10px 18px rgba(13,122,83,.18))}.brand h1{font-size:30px;line-height:1.05;margin:0 0 7px;font-weight:850;letter-spacing:-.03em;background:linear-gradient(135deg,#071018 0%,#0d7a53 58%,#9a6b00 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
 .brand p{margin:0;color:var(--muted);font-size:15px;line-height:1.45;font-weight:450}
-.datebar{display:flex;gap:8px;align-items:center;background:rgba(255,255,255,.8);backdrop-filter:blur(6px);border:1px solid var(--line);padding:6px;border-radius:12px;box-shadow:var(--shadow-sm)}
-.datebar a,.datebar button{border:1px solid transparent;background:#fff;color:var(--ink);height:38px;padding:0 15px;border-radius:9px;text-decoration:none;font-weight:640;font-size:13.5px;box-shadow:var(--shadow-sm);transition:transform .12s var(--ease),box-shadow .12s var(--ease),background .12s var(--ease);display:inline-flex;align-items:center}
-.datebar a:hover{background:var(--neutral2)}
-.datebar button{background:var(--ink);color:#fff;cursor:pointer}
-.datebar button:hover{background:#000}
-.datebar input,.form input,.form select,.form textarea{height:40px;border:1px solid var(--line);border-radius:9px;padding:0 12px;background:#fff;color:var(--ink);font:inherit;outline:none;transition:border-color .12s var(--ease),box-shadow .12s var(--ease)}
-.datebar input:focus,.form input:focus,.form select:focus,.form textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent2)}
+.datebar{display:flex;gap:8px;align-items:center;position:relative;z-index:80;background:rgba(255,255,255,.96);backdrop-filter:blur(6px);border:1px solid var(--line);padding:6px;border-radius:12px;box-shadow:var(--shadow-sm)}
+.datebar>a,.datebar>button{border:1px solid transparent;background:#fff;color:var(--ink);height:38px;padding:0 15px;border-radius:9px;text-decoration:none;font-weight:640;font-size:13.5px;box-shadow:var(--shadow-sm);transition:transform .12s var(--ease),box-shadow .12s var(--ease),background .12s var(--ease);display:inline-flex;align-items:center}
+.datebar>a:hover{background:var(--neutral2)}
+.datebar>button{background:linear-gradient(135deg,#108058,#0a5c3f);color:#fff;cursor:pointer;box-shadow:0 8px 18px rgba(13,122,83,.24)}
+.datebar>button:hover{background:linear-gradient(135deg,#0d7a53,#084d35)}
+.datebar input,.form input,.form textarea{height:40px;border:1px solid var(--line);border-radius:9px;padding:0 12px;background:#fff;color:var(--ink);font:inherit;outline:none;box-shadow:var(--shadow-sm);transition:border-color .12s var(--ease),box-shadow .12s var(--ease),background .12s var(--ease)}
+.datebar input:focus,.form input:focus,.form textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent2)}
+.date-source{display:none}
+.custom-date{position:relative;min-width:205px}
+.custom-date-button{width:100%;height:40px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);font:inherit;font-size:13.5px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 12px;box-shadow:var(--shadow-sm);cursor:pointer;text-align:left;transition:border-color .12s var(--ease),box-shadow .12s var(--ease),background .12s var(--ease)}
+.custom-date-button:hover{background:#fbfcf9}
+.custom-date.is-open .custom-date-button,.custom-date-button:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent2);outline:none}
+.custom-date-button::after{content:"";width:15px;height:15px;border:2px solid var(--muted);border-top-width:4px;border-radius:4px;flex:none}
+.custom-date-popover{position:absolute;right:0;top:calc(100% + 8px);z-index:100;width:292px;border:1px solid #cfe9dc;border-radius:14px;background:#fff;box-shadow:var(--shadow-lg);padding:14px;display:none}
+.custom-date.is-open .custom-date-popover{display:block}
+.custom-date-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.custom-date-title{font-weight:780;font-size:14px;color:var(--accent-ink)}
+.custom-date-nav{width:30px;height:30px;border:1px solid #cfe9dc;border-radius:8px;background:var(--accent2);color:var(--accent);font-size:16px;line-height:1;cursor:pointer;box-shadow:none;padding:0;display:grid;place-items:center}
+.custom-date-nav:hover{background:var(--accent2);color:var(--accent-ink);border-color:#cfe9dc}
+.custom-date-week,.custom-date-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.custom-date-week span{height:22px;display:grid;place-items:center;color:var(--muted2);font-size:10.5px;font-weight:760;text-transform:uppercase}
+.custom-date-day,.custom-date-empty{width:34px;height:34px;border-radius:8px}
+.custom-date-day{border:0;background:#fff;color:var(--ink);font:inherit;font-size:12.5px;font-weight:680;cursor:pointer;box-shadow:none;padding:0;display:grid;place-items:center}
+.custom-date-day:hover{background:var(--accent2);color:var(--accent-ink)}
+.custom-date-day.is-today{box-shadow:inset 0 0 0 1px var(--accent);color:var(--accent-ink)}
+.custom-date-day.is-selected{background:var(--accent);color:#fff;box-shadow:0 8px 16px rgba(13,122,83,.22)}
+.custom-date-empty{background:transparent}
 
 .grid{display:grid;grid-template-columns:minmax(0,1.65fr) 400px;gap:18px}
 .cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:20px}
@@ -427,17 +457,19 @@ a{color:inherit}
 .card-icon svg{width:16px;height:16px}
 .card span{display:block;color:var(--muted);font-size:11.5px;font-weight:680;text-transform:uppercase;letter-spacing:.05em}
 .card strong{display:block;font-size:24px;line-height:1.15;margin-top:6px;font-weight:780;letter-spacing:-.01em}
-.usage-summary{display:flex;gap:32px;padding:18px 20px 4px}
+.usage-summary{display:flex;gap:32px;padding:18px 20px 4px;min-height:96px;align-items:flex-start}
 .usage-stat span{display:block;color:var(--muted);font-size:11.5px;font-weight:680;text-transform:uppercase;letter-spacing:.05em}
 .usage-stat strong{display:block;font-size:22px;line-height:1.15;margin-top:6px;font-weight:780;letter-spacing:-.01em}
 .usage-stat small{display:block;color:var(--muted2);font-size:11.5px;margin-top:3px}
 .usage-chart{padding:6px 12px 14px}
 .area-chart-wrap{position:relative}
-.area-chart{width:100%;height:160px;display:block;cursor:crosshair}
+.area-chart{width:100%;height:142px;display:block;cursor:crosshair}
+.area-chart-labels{position:relative;height:14px;margin-top:2px;color:var(--muted2);font-size:11px;font-weight:650;line-height:1}
+.area-chart-labels span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
 .area-chart-guide{stroke:var(--line);stroke-width:1;stroke-dasharray:3 3}
-.area-chart-tooltip{position:absolute;pointer-events:none;background:var(--ink);color:#fff;padding:8px 12px;border-radius:9px;font-size:12px;line-height:1.5;box-shadow:var(--shadow-lg);transform:translate(-50%,-118%);white-space:nowrap;z-index:5;transition:opacity .08s var(--ease)}
+.area-chart-tooltip{position:absolute;pointer-events:none;background:#fff;color:var(--ink);border:1px solid #cfe9dc;padding:8px 12px;border-radius:9px;font-size:12px;line-height:1.5;box-shadow:0 10px 24px rgba(13,122,83,.16);transform:translate(-50%,-118%);white-space:nowrap;z-index:5;transition:opacity .08s var(--ease)}
 .area-chart-tooltip strong{display:block;font-size:13px;font-weight:720}
-.area-chart-tooltip small{color:var(--muted2);font-size:11px}
+.area-chart-tooltip small{color:var(--accent-ink);font-size:11px}
 
 .panel{overflow:hidden}
 .panel h2{font-size:14.5px;margin:0;padding:16px 20px;border-bottom:1px solid var(--line2);font-weight:720;letter-spacing:-.005em}
@@ -459,18 +491,21 @@ a{color:inherit}
 .booked strong{color:var(--danger)}
 
 .side{display:flex;flex-direction:column;gap:18px}
-.booking-panel{position:sticky;top:18px}
+.booking-panel{position:static;overflow:visible}
 .booking-head{display:flex;align-items:center;justify-content:space-between;gap:14px}
 .court-mark{width:44px;height:26px;border:1px solid #cfe4d8;border-radius:6px;background:linear-gradient(90deg,transparent 49%,#cfe4d8 49%,#cfe4d8 51%,transparent 51%),linear-gradient(0deg,transparent 49%,#cfe4d8 49%,#cfe4d8 51%,transparent 51%),#f5fff9}
 .form{padding:18px 20px 20px;display:grid;gap:13px}
 .form-intro{margin:0 0 2px;color:var(--muted);font-size:12.5px;line-height:1.5}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.form label{display:grid;gap:6px;color:var(--muted);font-size:12.5px}
+.form label{display:grid;gap:6px;color:var(--muted);font-size:12.5px;position:relative}
 .form label span{font-weight:680;color:#33403a}
+.form input[type="time"]{font-size:13px;cursor:pointer}
+.form input[type="time"]::-webkit-calendar-picker-indicator{opacity:.65;cursor:pointer}
+.form input[type="time"]:hover{background:#fbfcf9}
 .form textarea{height:70px;padding-top:9px;resize:vertical}
-.form button{height:44px;border:0;border-radius:var(--radius-sm);background:linear-gradient(135deg,#108058,#0a5c3f);color:#fff;font-weight:720;font-size:14.5px;box-shadow:0 10px 22px rgba(13,122,83,.24);cursor:pointer;transition:transform .12s var(--ease),box-shadow .12s var(--ease),filter .12s var(--ease)}
-.form button:hover{filter:brightness(1.06);box-shadow:0 12px 26px rgba(13,122,83,.3)}
-.form button:active{transform:translateY(1px)}
+.form button[type="submit"]{height:44px;border:0;border-radius:var(--radius-sm);background:linear-gradient(135deg,#108058,#0a5c3f);color:#fff;font-weight:720;font-size:14.5px;box-shadow:0 10px 22px rgba(13,122,83,.24);cursor:pointer;transition:transform .12s var(--ease),box-shadow .12s var(--ease),filter .12s var(--ease)}
+.form button[type="submit"]:hover{filter:brightness(1.06);box-shadow:0 12px 26px rgba(13,122,83,.3)}
+.form button[type="submit"]:active{transform:translateY(1px)}
 .small-button{height:30px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--danger);font-weight:680;padding:0 11px;font-size:12.5px;cursor:pointer;transition:background .12s var(--ease),border-color .12s var(--ease),transform .12s var(--ease)}
 .small-button:hover{background:var(--danger2);border-color:#f0c7c1}
 .small-button:active{transform:translateY(1px)}
@@ -491,6 +526,12 @@ tbody tr:hover{background:var(--accent2)}
 .pill.expired{background:var(--danger2);color:var(--danger)}
 .pill.cancelled{background:var(--neutral2);color:var(--muted)}
 .empty{text-align:center;color:var(--muted);padding:32px}
+.whitelist-list{list-style:none;margin:0;padding:10px 12px 14px;display:grid;gap:8px;background:#fff}
+.whitelist-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 10px 10px 12px;border:1px solid var(--line2);border-radius:10px;background:#fbfcf9;transition:background .12s var(--ease),border-color .12s var(--ease)}
+.whitelist-item:hover{background:var(--accent2);border-color:#cfe9dc}
+.whitelist-phone{font-weight:720;color:var(--ink);font-size:13.5px;letter-spacing:.01em}
+.whitelist-empty{padding:24px 18px;text-align:center;color:var(--muted);font-size:13px;background:#fbfcf9;border:1px dashed var(--line);border-radius:10px}
+.whitelist-list .small-button{height:32px;background:#fff;flex:none}
 .table-toolbar{padding:14px 20px 16px;border-bottom:1px solid var(--line2);background:linear-gradient(180deg,#fff 0%,#fbfcf9 100%)}
 .booking-toolbar-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
 .booking-count{color:var(--muted);font-size:13px;font-weight:650}
@@ -498,8 +539,23 @@ tbody tr:hover{background:var(--accent2)}
 .filter-reset:hover{background:var(--neutral2)}
 .filter-grid{display:grid;grid-template-columns:minmax(220px,1.35fr) repeat(4,minmax(145px,1fr));gap:10px}
 .filter-grid label{display:grid;gap:6px;color:var(--muted);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
-.filter-grid input,.filter-grid select{height:38px;border:1px solid var(--line);border-radius:9px;padding:0 11px;background:#fff;color:var(--ink);font:inherit;font-size:13px;outline:none;box-shadow:var(--shadow-sm)}
-.filter-grid input:focus,.filter-grid select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent2)}
+.filter-grid input{height:38px;border:1px solid var(--line);border-radius:9px;padding:0 11px;background:#fff;color:var(--ink);font:inherit;font-size:13px;outline:none;box-shadow:var(--shadow-sm)}
+.filter-grid input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent2)}
+.select-source,.time-source{display:none}
+.custom-select{position:relative;width:100%;font:inherit;text-transform:none;letter-spacing:0}
+.custom-select-button{width:100%;height:40px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);font:inherit;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 11px;box-shadow:var(--shadow-sm);cursor:pointer;text-align:left;transition:border-color .12s var(--ease),box-shadow .12s var(--ease),background .12s var(--ease)}
+.form .custom-select-button{height:40px;font-size:13px;padding:0 12px;box-shadow:var(--shadow-sm)}
+.custom-select-button:hover{background:#fbfcf9}
+.custom-select.is-open .custom-select-button,.custom-select-button:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent2);outline:none}
+.custom-select-button::after{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:translateY(-2px) rotate(45deg);transition:transform .12s var(--ease);flex:none}
+.custom-select.is-open .custom-select-button::after{transform:translateY(2px) rotate(225deg)}
+.custom-select-menu{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:30;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-lg);padding:5px;display:none;max-height:220px;overflow:auto}
+.custom-select.is-open .custom-select-menu{display:grid;gap:2px}
+.custom-select.drop-up .custom-select-menu{top:auto;bottom:calc(100% + 6px)}
+.custom-select-option{min-height:34px;border:0;border-radius:7px;background:transparent;color:var(--ink);font:inherit;font-size:13px;text-align:left;padding:0 10px;cursor:pointer}
+.custom-select-option:hover,.custom-select-option:focus{background:var(--accent2);outline:none}
+.custom-select-option:disabled{color:var(--muted2);cursor:not-allowed;background:transparent;opacity:.55}
+.custom-select-option.is-selected{background:var(--accent2);color:var(--accent-ink);font-weight:720}
 td form{margin:0}
 tr.is-hidden{display:none}
 
@@ -567,7 +623,7 @@ dialog::backdrop{background:rgba(16,22,17,.45);backdrop-filter:blur(2px)}
     <div class="card"><div class="card-icon">${ICON_GRID}</div><span>Lapangan Aktif</span><strong>${params.courtRows.length}</strong></div>
     <div class="card"><div class="card-icon">${ICON_CHECK}</div><span>Booking Aktif</span><strong>${activeBookings.length}</strong></div>
   </div>
-  <div class="grid"><section class="panel"><h2>Timeline Harian</h2><div class="timeline">${timeline}</div></section><aside class="side"><section class="panel booking-panel"><h2 class="booking-head"><span>Booking Manual</span><span class="court-mark" aria-hidden="true"></span></h2><form class="form" method="post" action="/admin/bookings"><input type="hidden" name="booking_date" value="${escapeHtml(params.date)}"><p class="form-intro">Input booking langsung ke jadwal ${escapeHtml(params.date)}. Sistem akan menolak slot yang bentrok.</p>${params.message ? `<div class="form-feedback notice">${escapeHtml(params.message)}</div>` : ''}${params.error ? `<div class="form-feedback error">${escapeHtml(params.error)}</div>` : ''}<label><span>Nama Customer</span><input name="customer_name" required placeholder="Contoh: Dimas"></label><label><span>Nomor WhatsApp</span><input name="customer_phone" required placeholder="628xxxxxxxxxx"></label><div class="field-row"><label><span>Lapangan</span><select name="court_id" required>${courtOptions}</select></label><label><span>Status</span><select name="status"><option value="confirmed">Confirmed</option><option value="pending">Pending</option></select></label></div><div class="field-row"><label><span>Jam Mulai</span><input type="time" name="start_time" required value="19:00"></label><label><span>Jam Selesai</span><input type="time" name="end_time" required value="20:00"></label></div><label><span>Catatan</span><textarea name="notes" placeholder="Catatan internal admin"></textarea></label><button type="submit">Simpan ke Jadwal</button></form></section><section class="panel"><h2>Whitelist WhatsApp</h2><form class="form" method="post" action="/admin/whitelist"><p class="form-intro">Jika daftar ini diisi, hanya nomor aktif di bawah yang diproses bot.</p><label><span>Nomor WhatsApp</span><input name="phone" required placeholder="628xxxxxxxxxx"></label><button type="submit">Tambah Nomor</button></form><table><thead><tr><th>Nomor</th><th></th></tr></thead><tbody>${whitelistList}</tbody></table></section></aside></div>
+  <div class="grid"><section class="panel"><h2>Timeline Harian</h2><div class="timeline">${timeline}</div></section><aside class="side"><section class="panel booking-panel"><h2 class="booking-head"><span>Booking Manual</span><span class="court-mark" aria-hidden="true"></span></h2><form class="form" method="post" action="/admin/bookings"><input type="hidden" name="booking_date" value="${escapeHtml(params.date)}"><p class="form-intro">Input booking langsung ke jadwal ${escapeHtml(params.date)}. Sistem akan menolak slot yang bentrok.</p>${params.message ? `<div class="form-feedback notice">${escapeHtml(params.message)}</div>` : ''}${params.error ? `<div class="form-feedback error">${escapeHtml(params.error)}</div>` : ''}<label><span>Nama Customer</span><input name="customer_name" required placeholder="Contoh: Dimas"></label><label><span>Nomor WhatsApp</span><input name="customer_phone" required placeholder="628xxxxxxxxxx"></label><div class="field-row"><label><span>Lapangan</span><select name="court_id" required>${courtOptions}</select></label><label><span>Status</span><select name="status"><option value="confirmed">Confirmed</option><option value="pending">Pending</option></select></label></div><div class="field-row"><label><span>Jam Mulai</span><input type="time" name="start_time" required min="08:00" max="21:00" step="3600" value="19:00"></label><label><span>Jam Selesai</span><input type="time" name="end_time" required min="09:00" max="22:00" step="3600" value="20:00"></label></div><label><span>Catatan</span><textarea name="notes" placeholder="Catatan internal admin"></textarea></label><button type="submit">Simpan ke Jadwal</button></form></section><section class="panel"><h2>Whitelist WhatsApp</h2><form class="form" method="post" action="/admin/whitelist"><p class="form-intro">Jika daftar ini diisi, hanya nomor aktif di bawah yang diproses bot.</p><label><span>Nomor WhatsApp</span><input name="phone" required placeholder="628xxxxxxxxxx"></label><button type="submit">Tambah Nomor</button></form><ul class="whitelist-list">${whitelistList}</ul></section></aside></div>
   <section class="panel data-panel" style="margin-top:18px"><h2>Data Booking</h2><div class="table-toolbar booking-filters"><div class="booking-toolbar-head"><span id="booking-count" class="booking-count">${params.bookingRows.length} booking di tanggal ini</span><button id="booking-filter-reset" class="filter-reset" type="button">Reset</button></div><div class="filter-grid"><label><span>Cari</span><input id="booking-search" type="search" placeholder="Kode, nama, nomor, catatan..."></label><label><span>Status</span><select id="booking-status-filter"><option value="">Semua status</option><option value="confirmed">Confirmed</option><option value="pending">Pending</option><option value="expired">Expired</option><option value="cancelled">Cancelled</option></select></label><label><span>Lapangan</span><select id="booking-court-filter"><option value="">Semua lapangan</option>${tableCourtFilterOptions}</select></label><label><span>Pembayaran</span><select id="booking-payment-filter"><option value="">Semua bayar</option><option value="paid">Ada nominal</option><option value="unpaid">Belum ada nominal</option></select></label><label><span>Jam mulai</span><select id="booking-time-filter"><option value="">Semua jam</option>${tableTimeFilterOptions}</select></label></div></div><div style="overflow-x:auto"><table><thead><tr><th>Kode</th><th>Customer</th><th>Lapangan</th><th>Jam</th><th>Status</th><th>Bayar</th><th>Catatan</th><th></th></tr></thead><tbody id="booking-rows">${bookingList}<tr id="booking-filter-empty" class="is-hidden"><td colspan="8" class="empty">Tidak ada booking yang cocok dengan filter.</td></tr></tbody></table></div></section>
 </main>
 <dialog id="cancel-dialog">
@@ -581,6 +637,270 @@ dialog::backdrop{background:rgba(16,22,17,.45);backdrop-filter:blur(2px)}
   </div>
 </dialog>
 <script>
+function closeCustomSelects(except) {
+  document.querySelectorAll('.custom-select.is-open').forEach(function (item) {
+    if (item !== except) {
+      item.classList.remove('is-open')
+      item.querySelector('.custom-select-button')?.setAttribute('aria-expanded', 'false')
+    }
+  })
+}
+function closeCustomDates(except) {
+  document.querySelectorAll('.custom-date.is-open').forEach(function (item) {
+    if (item !== except) item.classList.remove('is-open')
+  })
+}
+
+function dateValue(date) {
+  return date.getUTCFullYear() + '-' + String(date.getUTCMonth() + 1).padStart(2, '0') + '-' + String(date.getUTCDate()).padStart(2, '0')
+}
+const dateMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des']
+function formatDateLabel(value) {
+  if (!value) return 'Pilih tanggal'
+  const parts = value.split('-').map(Number)
+  const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]))
+  const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
+  return days[date.getUTCDay()] + ', ' + String(date.getUTCDate()).padStart(2, '0') + ' ' + dateMonths[date.getUTCMonth()] + ' ' + date.getUTCFullYear()
+}
+
+document.querySelectorAll('input[type=date]').forEach(function (input) {
+  input.classList.add('date-source')
+  const wrap = document.createElement('div')
+  wrap.className = 'custom-date'
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'custom-date-button'
+  const popover = document.createElement('div')
+  popover.className = 'custom-date-popover'
+  popover.addEventListener('click', function (event) {
+    event.stopPropagation()
+  })
+  let view = new Date((input.value || dateValue(new Date())) + 'T00:00:00Z')
+
+  function renderDatePicker() {
+    const monthStart = new Date(Date.UTC(view.getUTCFullYear(), view.getUTCMonth(), 1))
+    const monthEnd = new Date(Date.UTC(view.getUTCFullYear(), view.getUTCMonth() + 1, 0))
+    popover.innerHTML = ''
+
+    const head = document.createElement('div')
+    head.className = 'custom-date-head'
+    const prev = document.createElement('button')
+    prev.type = 'button'
+    prev.className = 'custom-date-nav'
+    prev.textContent = '<'
+    const title = document.createElement('div')
+    title.className = 'custom-date-title'
+    title.textContent = dateMonths[monthStart.getUTCMonth()] + ' ' + monthStart.getUTCFullYear()
+    const next = document.createElement('button')
+    next.type = 'button'
+    next.className = 'custom-date-nav'
+    next.textContent = '>'
+    head.append(prev, title, next)
+    popover.appendChild(head)
+
+    const week = document.createElement('div')
+    week.className = 'custom-date-week'
+    ;['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'].forEach(function (day) {
+      const item = document.createElement('span')
+      item.textContent = day
+      week.appendChild(item)
+    })
+    popover.appendChild(week)
+
+    const grid = document.createElement('div')
+    grid.className = 'custom-date-grid'
+    for (let i = 0; i < monthStart.getUTCDay(); i++) {
+      const empty = document.createElement('span')
+      empty.className = 'custom-date-empty'
+      grid.appendChild(empty)
+    }
+    for (let day = 1; day <= monthEnd.getUTCDate(); day++) {
+      const value = dateValue(new Date(Date.UTC(view.getUTCFullYear(), view.getUTCMonth(), day)))
+      const dayButton = document.createElement('button')
+      dayButton.type = 'button'
+      dayButton.className = 'custom-date-day'
+      dayButton.textContent = String(day)
+      dayButton.classList.toggle('is-selected', value === input.value)
+      dayButton.classList.toggle('is-today', value === dateValue(new Date()))
+      dayButton.addEventListener('click', function () {
+        input.value = value
+        input.dispatchEvent(new Event('change', { bubbles: true }))
+        button.textContent = formatDateLabel(input.value)
+        closeCustomDates()
+        input.form?.requestSubmit()
+      })
+      grid.appendChild(dayButton)
+    }
+    popover.appendChild(grid)
+
+    prev.addEventListener('click', function () {
+      view = new Date(Date.UTC(view.getUTCFullYear(), view.getUTCMonth() - 1, 1))
+      renderDatePicker()
+    })
+    next.addEventListener('click', function () {
+      view = new Date(Date.UTC(view.getUTCFullYear(), view.getUTCMonth() + 1, 1))
+      renderDatePicker()
+    })
+  }
+
+  button.textContent = formatDateLabel(input.value)
+  button.addEventListener('click', function () {
+    const isOpen = wrap.classList.toggle('is-open')
+    if (isOpen) {
+      closeCustomDates(wrap)
+      closeCustomSelects()
+      renderDatePicker()
+    }
+  })
+  input.addEventListener('change', function () {
+    button.textContent = formatDateLabel(input.value)
+    view = new Date((input.value || dateValue(new Date())) + 'T00:00:00Z')
+  })
+  wrap.append(button, popover)
+  input.after(wrap)
+})
+
+document.querySelectorAll('select').forEach(function (select) {
+  select.classList.add('select-source')
+  const wrap = document.createElement('div')
+  wrap.className = 'custom-select'
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'custom-select-button'
+  button.setAttribute('aria-haspopup', 'listbox')
+  button.setAttribute('aria-expanded', 'false')
+  const menu = document.createElement('div')
+  menu.className = 'custom-select-menu'
+  menu.setAttribute('role', 'listbox')
+
+  function syncButton() {
+    button.textContent = select.options[select.selectedIndex]?.text || 'Pilih'
+    menu.querySelectorAll('.custom-select-option').forEach(function (option) {
+      option.classList.toggle('is-selected', option.dataset.value === select.value)
+    })
+  }
+
+  Array.from(select.options).forEach(function (nativeOption) {
+    const option = document.createElement('button')
+    option.type = 'button'
+    option.className = 'custom-select-option'
+    option.dataset.value = nativeOption.value
+    option.textContent = nativeOption.text
+    option.setAttribute('role', 'option')
+    option.addEventListener('click', function () {
+      select.value = nativeOption.value
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+      closeCustomSelects()
+      syncButton()
+    })
+    menu.appendChild(option)
+  })
+
+  button.addEventListener('click', function () {
+    syncButton()
+    const isOpen = wrap.classList.toggle('is-open')
+    button.setAttribute('aria-expanded', String(isOpen))
+    if (isOpen) {
+      closeCustomSelects(wrap)
+      wrap.classList.toggle('drop-up', button.getBoundingClientRect().bottom + menu.offsetHeight + 12 > window.innerHeight)
+    } else {
+      wrap.classList.remove('drop-up')
+    }
+  })
+  select.addEventListener('change', syncButton)
+  wrap.append(button, menu)
+  select.after(wrap)
+  syncButton()
+})
+
+document.querySelectorAll('input[type=time]').forEach(function (input) {
+  input.classList.add('time-source')
+  const wrap = document.createElement('div')
+  wrap.className = 'custom-select'
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'custom-select-button'
+  button.setAttribute('aria-haspopup', 'listbox')
+  button.setAttribute('aria-expanded', 'false')
+  const menu = document.createElement('div')
+  menu.className = 'custom-select-menu'
+  menu.setAttribute('role', 'listbox')
+
+  const min = input.min || '08:00'
+  const max = input.max || '22:00'
+  for (let time = min; time <= max;) {
+    const option = document.createElement('button')
+    option.type = 'button'
+    option.className = 'custom-select-option'
+    option.dataset.value = time
+    option.textContent = time
+    option.setAttribute('role', 'option')
+    option.addEventListener('click', function () {
+      input.value = time
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+      closeCustomSelects()
+      syncButton()
+    })
+    menu.appendChild(option)
+
+    const parts = time.split(':').map(Number)
+    const date = new Date(Date.UTC(2000, 0, 1, parts[0] + 1, parts[1]))
+    time = String(date.getUTCHours()).padStart(2, '0') + ':' + String(date.getUTCMinutes()).padStart(2, '0')
+  }
+
+  function syncButton() {
+    button.textContent = input.value || 'Pilih jam'
+    const startInput = input.name === 'end_time' ? document.querySelector('input[name="start_time"]') : null
+    menu.querySelectorAll('.custom-select-option').forEach(function (option) {
+      option.classList.toggle('is-selected', option.dataset.value === input.value)
+      const invalidEndTime = !!startInput && option.dataset.value <= startInput.value
+      option.disabled = invalidEndTime
+    })
+  }
+
+  button.addEventListener('click', function () {
+    syncButton()
+    const isOpen = wrap.classList.toggle('is-open')
+    button.setAttribute('aria-expanded', String(isOpen))
+    if (isOpen) {
+      closeCustomSelects(wrap)
+      wrap.classList.toggle('drop-up', button.getBoundingClientRect().bottom + menu.offsetHeight + 12 > window.innerHeight)
+    } else {
+      wrap.classList.remove('drop-up')
+    }
+  })
+  input.addEventListener('change', syncButton)
+  wrap.append(button, menu)
+  input.after(wrap)
+  syncButton()
+})
+
+const startTimeInput = document.querySelector('input[name="start_time"]')
+const endTimeInput = document.querySelector('input[name="end_time"]')
+function addOneHour(time) {
+  const parts = time.split(':').map(Number)
+  const date = new Date(Date.UTC(2000, 0, 1, parts[0] + 1, parts[1]))
+  return String(date.getUTCHours()).padStart(2, '0') + ':' + String(date.getUTCMinutes()).padStart(2, '0')
+}
+startTimeInput?.addEventListener('change', function () {
+  if (endTimeInput.value <= startTimeInput.value) {
+    endTimeInput.value = addOneHour(startTimeInput.value)
+  }
+  endTimeInput.dispatchEvent(new Event('change', { bubbles: true }))
+})
+
+document.addEventListener('click', function (event) {
+  if (!event.target.closest('.custom-select')) closeCustomSelects()
+  if (!event.target.closest('.custom-date')) closeCustomDates()
+})
+document.addEventListener('keydown', function (event) {
+  if (event.key === 'Escape') {
+    closeCustomSelects()
+    closeCustomDates()
+  }
+})
+
 const bookingRows = Array.from(document.querySelectorAll('#booking-rows tr[data-search]'))
 const bookingFilters = {
   query: document.getElementById('booking-search'),
@@ -613,7 +933,10 @@ Object.values(bookingFilters).forEach(function (control) {
   control.addEventListener(control.tagName === 'INPUT' ? 'input' : 'change', applyBookingFilters)
 })
 document.getElementById('booking-filter-reset').addEventListener('click', function () {
-  Object.values(bookingFilters).forEach(function (control) { control.value = '' })
+  Object.values(bookingFilters).forEach(function (control) {
+    control.value = ''
+    control.dispatchEvent(new Event('change', { bubbles: true }))
+  })
   applyBookingFilters()
 })
 applyBookingFilters()
@@ -681,7 +1004,7 @@ async function createManualBooking(form: Record<string, FormDataEntryValue>) {
   const endTime = String(form.end_time || '')
   const status = String(form.status || 'confirmed') as 'pending' | 'confirmed'
 
-  if (!courtId || !startTime || !endTime || startTime >= endTime) throw new Error('Data booking belum lengkap atau jam tidak valid.')
+  if (!courtId || !startTime || !endTime || !isValidBookingWindow(startTime, endTime)) throw new Error('Booking hanya bisa dibuat di jam bulat 08.00-22.00.')
   if (!String(form.customer_name || '').trim() || !String(form.customer_phone || '').trim()) throw new Error('Nama dan nomor WhatsApp wajib diisi.')
 
   const activeBookings = await db

@@ -86,9 +86,13 @@ export const chatHistories = pgTable(
     outputTokens: integer('output_tokens'),
     totalTokens: integer('total_tokens'),
     error: text('error'),
+    whatsappMessageId: text('whatsapp_message_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index('chat_histories_phone_created_idx').on(table.phone, table.createdAt)],
+  (table) => [
+    index('chat_histories_phone_created_idx').on(table.phone, table.createdAt),
+    uniqueIndex('chat_histories_whatsapp_message_id_idx').on(table.whatsappMessageId),
+  ],
 )
 
 

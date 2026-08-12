@@ -4,7 +4,7 @@ import { db } from './db/client'
 import { bookings, courts, whitelistedNumbers } from './db/schema'
 import { isExpiredMidtransStatus, isPaidMidtransStatus, isValidMidtransSignature } from './lib/midtrans'
 import { getReplyText } from './lib/reply'
-import { saveChatHistory } from './lib/chat-history'
+import { isMessageAlreadyProcessed, saveChatHistory } from './lib/chat-history'
 import { buildReceiptPdf } from './lib/receipt'
 import { registerAdminRoutes } from './admin'
 
@@ -342,6 +342,11 @@ app.post('/webhook/whatsapp', async (c) => {
       text: message.text?.body,
     })
 
+    if (message.id && (await isMessageAlreadyProcessed(message.id))) {
+      console.log('WhatsApp duplicate webhook delivery ignored', { messageId: message.id })
+      return c.text('OK')
+    }
+
     if (!(await isAllowedWhatsAppNumber(message.from))) {
       console.log('WhatsApp ignored non-whitelisted number', { phone: message.from })
       return c.text('OK')
@@ -360,6 +365,7 @@ app.post('/webhook/whatsapp', async (c) => {
       model: reply.model,
       usage: reply.usage,
       error: reply.error,
+      whatsappMessageId: message.id,
     })
 
     await sendWhatsAppText(message.from, reply.text)

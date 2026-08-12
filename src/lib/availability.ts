@@ -111,7 +111,6 @@ export async function getAvailabilityContext(intent: IntentDetectionResult) {
       ? []
       : availableSlotsForDay(durationHours, activeCourts, activeBookings, intent.court_number)
           .filter((slot) => slot.start_time !== startTime)
-          .slice(0, 5)
     return {
       mode: 'exact_slot',
       date,

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, lt, or } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, lt, or } from 'drizzle-orm'
 import { db } from '../db/client'
 import { bookings, courts } from '../db/schema'
 import type { IntentDetectionResult } from './intent'
@@ -42,6 +42,10 @@ type BookingRow = typeof bookings.$inferSelect
 
 function todayInJakarta() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' })
+}
+
+function nowTimeInJakarta() {
+  return new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 function addMinutes(time: string, minutes: number) {
@@ -98,7 +102,6 @@ function availableSlotsForDay(durationHours: number, activeCourts: { id: string;
         .map((court) => ({ court_number: courtNumber(court.name), court_name: court.name })),
     }))
     .filter((slot) => slot.available_courts.length > 0)
-    .slice(0, 5)
 }
 
 export async function createBookingFromWhatsApp(params: {
@@ -258,12 +261,15 @@ export async function preparePendingPayment(customerPhone: string) {
   }
 }
 
-export async function getLatestBookingStatus(customerPhone: string) {
+export async function getUpcomingBookingStatus(customerPhone: string) {
   if (!customerPhone) return { status: 'missing_customer_phone' }
 
   await expireStalePendingBookings()
 
-  const [booking] = await db
+  const today = todayInJakarta()
+  const now = nowTimeInJakarta()
+
+  const rows = await db
     .select({
       bookingCode: bookings.bookingCode,
       bookingDate: bookings.bookingDate,
@@ -276,15 +282,18 @@ export async function getLatestBookingStatus(customerPhone: string) {
     })
     .from(bookings)
     .innerJoin(courts, eq(bookings.courtId, courts.id))
-    .where(eq(bookings.customerPhone, customerPhone))
-    .orderBy(desc(bookings.createdAt))
-    .limit(1)
+    .where(and(
+      eq(bookings.customerPhone, customerPhone),
+      inArray(bookings.status, ACTIVE_STATUSES),
+      or(gt(bookings.bookingDate, today), and(eq(bookings.bookingDate, today), gt(bookings.endTime, now))),
+    ))
+    .orderBy(asc(bookings.bookingDate), asc(bookings.startTime))
 
-  if (!booking) return { status: 'not_found' }
+  if (rows.length === 0) return { status: 'not_found' }
 
   return {
     status: 'found',
-    booking: {
+    bookings: rows.map((booking) => ({
       booking_code: booking.bookingCode,
       court_name: booking.courtName,
       booking_date: booking.bookingDate,
@@ -293,7 +302,7 @@ export async function getLatestBookingStatus(customerPhone: string) {
       status: booking.status,
       payment_status: booking.paymentStatus,
       amount: booking.paymentAmount,
-    },
+    })),
   }
 }
 
@@ -446,6 +455,7 @@ export async function proposeRescheduleFromWhatsApp(params: {
         booking_date: nextDate,
         start_time: nextStartTime,
         end_time: nextEndTime,
+        duration_hours: nextDurationHours,
       },
       alternatives: availableSlotsForDay(nextDurationHours, candidateCourts, activeBookings, pending.id).filter((slot) => slot.start_time !== nextStartTime),
     }

@@ -4,7 +4,7 @@ import { courts } from '../db/schema'
 import { getAvailabilityContext } from './availability'
 import { getRecentChatHistory } from './chat-history'
 import { clearConversationState, getConversationState, setConversationState } from './conversation-state'
-import { applyRescheduleFromState, cancelPendingBooking, createBookingFromState, createBookingFromWhatsApp, getLatestBookingStatus, latestPendingBooking, preparePendingPayment, proposeRescheduleFromWhatsApp } from './booking'
+import { applyRescheduleFromState, cancelPendingBooking, createBookingFromState, createBookingFromWhatsApp, getUpcomingBookingStatus, latestPendingBooking, preparePendingPayment, proposeRescheduleFromWhatsApp } from './booking'
 import { detectConfirmation, detectIntent, type IntentDetectionResult } from './intent'
 import { generateResponse } from './response'
 import { emptyUsage, sumUsage, type Usage } from './usage'
@@ -113,6 +113,12 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
       if (reschedule) {
         if ((reschedule as any).status === 'awaiting_reschedule_confirmation') {
           await setConversationState(customerPhone, 'awaiting_reschedule_confirmation', reschedule)
+        } else if ((reschedule as any).status === 'reschedule_unavailable' && (reschedule as any).alternatives?.length) {
+          await setConversationState(customerPhone, 'last_availability_lookup', {
+            date: (reschedule as any).requested_booking?.booking_date ?? mergedIntent.date,
+            duration_hours: (reschedule as any).requested_booking?.duration_hours ?? mergedIntent.duration_hours ?? 1,
+            court_number: mergedIntent.court_number ?? null,
+          })
         }
         return reschedule
       }
@@ -120,6 +126,12 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
       const result = await createBookingFromWhatsApp({ intent: mergedIntent, customerName, customerPhone })
       if ((result as any).status === 'needs_more_info') {
         await setConversationState(customerPhone, 'awaiting_booking_details', bookingDetailStatePayload(mergedIntent))
+      } else if ((result as any).status === 'slot_unavailable' && (result as any).alternatives?.length) {
+        await setConversationState(customerPhone, 'last_availability_lookup', {
+          date: (result as any).requested_slot?.date ?? mergedIntent.date,
+          duration_hours: (result as any).requested_slot?.duration_hours ?? mergedIntent.duration_hours ?? 1,
+          court_number: mergedIntent.court_number ?? null,
+        })
       } else {
         await setPaymentConfirmationState(customerPhone, result)
       }
@@ -164,7 +176,7 @@ async function contextForIntent(intent: IntentDetectionResult, customerName: str
 
   if (intent.intent === 'get_booking_status') {
     try {
-      return await getLatestBookingStatus(customerPhone)
+      return await getUpcomingBookingStatus(customerPhone)
     } catch (error) {
       console.error('Get booking status error', error)
       return { status: 'status_unavailable' }

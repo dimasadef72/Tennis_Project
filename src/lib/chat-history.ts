@@ -34,6 +34,7 @@ export async function saveChatHistory(params: {
   model: string
   usage: Usage
   error?: string
+  whatsappMessageId?: string
 }) {
   if (!params.phone) return
 
@@ -49,5 +50,16 @@ export async function saveChatHistory(params: {
     outputTokens: params.usage.outputTokens,
     totalTokens: params.usage.totalTokens,
     error: params.error ?? null,
+    whatsappMessageId: params.whatsappMessageId ?? null,
   })
+}
+
+export async function isMessageAlreadyProcessed(whatsappMessageId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: chatHistories.id })
+    .from(chatHistories)
+    .where(eq(chatHistories.whatsappMessageId, whatsappMessageId))
+    .limit(1)
+
+  return Boolean(row)
 }
