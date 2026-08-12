@@ -91,7 +91,7 @@ If conversation_context contains a pending booking or pending payment confirmati
 Examples with pending booking context: "1 jam" -> intent request_booking with duration_hours 1. "hari ini jam 19" -> intent request_booking with date and start_time. "ganti ke lapangan 2" -> intent request_booking with court_number 2.
 If missing or uncertain, return null.
 Questions about receipt, payment proof, bukti pembayaran, PDF receipt, whether to show it on arrival, or what to do after payment should be classified as get_booking_status.
-general_help is ONLY for greetings, asking how to use the bot, or basic questions about BMTennis itself (price per hour, operating hours, payment method, number of courts). Any question unrelated to BMTennis or tennis court booking (general knowledge, other topics, small talk unrelated to the service) must be classified as unknown, not general_help.
+general_help is for greetings, asking how to use the bot, basic questions about BMTennis itself (price per hour, operating hours, payment method, number of courts), and conversational closings that need no outside knowledge to answer (thanks, goodbye, short acknowledgments like oke/baik/sip, or saying they will decide later or ask someone else first). Any question that requires real content unrelated to BMTennis or tennis court booking (general knowledge, other topics) must be classified as unknown, not general_help.
 cancel_booking is used when the user wants to back out of, reject, or say never mind about whatever is currently pending: cancelling their own pending (unpaid) booking entirely, declining a newly offered slot before it becomes a booking, OR declining a proposed change/reschedule to a booking they already have (they want to keep the existing booking as-is, not lose it). This includes short rejections like "gajadi", "gak jadi", "batal", "batalin aja", "gausah diubah" when conversation_context shows a pending booking, a pending reschedule proposal, or a pending payment/booking confirmation. Cancelling the booking entirely and declining a proposed change are two different outcomes, but you do not need to tell them apart — always return cancel_booking as the intent for both, and the backend will decide the exact outcome from conversation_context.state. A confirmed (already paid) booking cannot be cancelled through chat, but you should still return cancel_booking as the intent and let the backend decide the correct outcome.
 
 Schema:
@@ -107,6 +107,8 @@ JSON: {"intent":"request_booking","date":"2026-08-11","start_time":"19:00","dura
 Message: aku mau ambil jam 18.00 - 20.00
 JSON: {"intent":"request_booking","date":null,"start_time":"18:00","duration_hours":2,"court_number":null,"booking_code":null}
 Message: halo
+JSON: {"intent":"general_help","date":null,"start_time":null,"duration_hours":null,"court_number":null,"booking_code":null}
+Message: oke terima kasih ya, aku tanya temenku dulu
 JSON: {"intent":"general_help","date":null,"start_time":null,"duration_hours":null,"court_number":null,"booking_code":null}
 Message: gajadi (conversation_context has a pending booking)
 JSON: {"intent":"cancel_booking","date":null,"start_time":null,"duration_hours":null,"court_number":null,"booking_code":null}
