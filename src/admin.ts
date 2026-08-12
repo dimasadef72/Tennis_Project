@@ -592,6 +592,23 @@ dialog::backdrop{background:rgba(16,22,17,.45);backdrop-filter:blur(2px)}
   .slots{grid-template-columns:1fr}
   .booking-panel{position:static}
 }
+@media(max-width:620px){
+  main{padding:22px 12px 48px}
+  .brand{align-items:flex-start}
+  .brand-logo{width:40px;height:40px}
+  .brand h1{font-size:25px}
+  .brand p{font-size:13.5px}
+  .cards{grid-template-columns:1fr}
+  .cards .usage-panel{grid-row:auto}
+  .usage-summary{gap:18px;min-height:auto;flex-direction:column}
+  .datebar{width:100%}
+  .datebar>a,.datebar>button{justify-content:center;width:100%}
+  .custom-date{min-width:0;width:100%}
+  .custom-date-popover{left:0;right:auto;width:min(292px,calc(100vw - 24px))}
+  .timeline,.data-panel>div:last-child{overflow-x:auto}
+  .time-row{min-width:520px}
+}
+
 </style>
 </head>
 <body>
