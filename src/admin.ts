@@ -206,6 +206,12 @@ function isValidBookingWindow(start: string, end: string) {
   return isWholeHour(normalizedStart) && isWholeHour(normalizedEnd) && normalizedStart >= HOURS.open && normalizedStart < HOURS.close && normalizedEnd > normalizedStart && normalizedEnd <= HOURS.close
 }
 
+function hoursBetween(start: string, end: string) {
+  const [startHour, startMinute] = normalizeTime(start).split(':').map(Number)
+  const [endHour, endMinute] = normalizeTime(end).split(':').map(Number)
+  return (endHour * 60 + endMinute - startHour * 60 - startMinute) / 60
+}
+
 function overlaps(start: string, end: string, booking: BookingRow) {
   return start < normalizeTime(booking.endTime) && end > normalizeTime(booking.startTime)
 }
@@ -512,6 +518,10 @@ a{color:inherit}
 .form-feedback{padding:11px 13px;border-radius:var(--radius-sm);border:1px solid;font-size:12.5px;line-height:1.5}
 .form-feedback.notice{background:var(--accent2);color:var(--accent-ink);border-color:#cfe9dc}
 .form-feedback.error{background:var(--danger2);color:var(--danger);border-color:#f2ccc6}
+.manual-total{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 13px;border:1px solid #cfe9dc;border-radius:10px;background:var(--accent2)}
+.manual-total span{color:var(--muted);font-size:11.5px;font-weight:720;text-transform:uppercase;letter-spacing:.05em}
+.manual-total strong{color:var(--accent-ink);font-size:18px;font-weight:820}
+.payment-method-field.is-hidden{display:none}
 
 table{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
 th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line2);vertical-align:top}
@@ -623,7 +633,7 @@ dialog::backdrop{background:rgba(16,22,17,.45);backdrop-filter:blur(2px)}
     <div class="card"><div class="card-icon">${ICON_GRID}</div><span>Lapangan Aktif</span><strong>${params.courtRows.length}</strong></div>
     <div class="card"><div class="card-icon">${ICON_CHECK}</div><span>Booking Aktif</span><strong>${activeBookings.length}</strong></div>
   </div>
-  <div class="grid"><section class="panel"><h2>Timeline Harian</h2><div class="timeline">${timeline}</div></section><aside class="side"><section class="panel booking-panel"><h2 class="booking-head"><span>Booking Manual</span><span class="court-mark" aria-hidden="true"></span></h2><form class="form" method="post" action="/admin/bookings"><input type="hidden" name="booking_date" value="${escapeHtml(params.date)}"><p class="form-intro">Input booking langsung ke jadwal ${escapeHtml(params.date)}. Sistem akan menolak slot yang bentrok.</p>${params.message ? `<div class="form-feedback notice">${escapeHtml(params.message)}</div>` : ''}${params.error ? `<div class="form-feedback error">${escapeHtml(params.error)}</div>` : ''}<label><span>Nama Customer</span><input name="customer_name" required placeholder="Contoh: Dimas"></label><label><span>Nomor WhatsApp</span><input name="customer_phone" required placeholder="628xxxxxxxxxx"></label><div class="field-row"><label><span>Lapangan</span><select name="court_id" required>${courtOptions}</select></label><label><span>Status</span><select name="status"><option value="confirmed">Confirmed</option><option value="pending">Pending</option></select></label></div><div class="field-row"><label><span>Jam Mulai</span><input type="time" name="start_time" required min="08:00" max="21:00" step="3600" value="19:00"></label><label><span>Jam Selesai</span><input type="time" name="end_time" required min="09:00" max="22:00" step="3600" value="20:00"></label></div><label><span>Catatan</span><textarea name="notes" placeholder="Catatan internal admin"></textarea></label><button type="submit">Simpan ke Jadwal</button></form></section><section class="panel"><h2>Whitelist WhatsApp</h2><form class="form" method="post" action="/admin/whitelist"><p class="form-intro">Jika daftar ini diisi, hanya nomor aktif di bawah yang diproses bot.</p><label><span>Nomor WhatsApp</span><input name="phone" required placeholder="628xxxxxxxxxx"></label><button type="submit">Tambah Nomor</button></form><ul class="whitelist-list">${whitelistList}</ul></section></aside></div>
+  <div class="grid"><section class="panel"><h2>Timeline Harian</h2><div class="timeline">${timeline}</div></section><aside class="side"><section class="panel booking-panel"><h2 class="booking-head"><span>Booking Manual</span><span class="court-mark" aria-hidden="true"></span></h2><form class="form" method="post" action="/admin/bookings" data-hourly-rate="${Number(process.env.BOOKING_HOURLY_RATE ?? 100000)}"><input type="hidden" name="booking_date" value="${escapeHtml(params.date)}"><p class="form-intro">Input booking langsung ke jadwal ${escapeHtml(params.date)}. Sistem akan menolak slot yang bentrok.</p>${params.message ? `<div class="form-feedback notice">${escapeHtml(params.message)}</div>` : ''}${params.error ? `<div class="form-feedback error">${escapeHtml(params.error)}</div>` : ''}<label><span>Nama Customer</span><input name="customer_name" required placeholder="Contoh: Dimas"></label><label><span>Nomor WhatsApp</span><input name="customer_phone" required placeholder="628xxxxxxxxxx"></label><div class="field-row"><label><span>Lapangan</span><select name="court_id" required>${courtOptions}</select></label><label><span>Status</span><select name="status"><option value="confirmed">Confirmed</option><option value="pending">Pending</option></select></label></div><div class="field-row"><label><span>Jam Mulai</span><input type="time" name="start_time" required min="08:00" max="21:00" step="3600" value="19:00"></label><label><span>Jam Selesai</span><input type="time" name="end_time" required min="09:00" max="22:00" step="3600" value="20:00"></label></div><div class="manual-total"><span>Total</span><strong id="manual-total">Rp0</strong></div><div class="field-row"><label><span>Status Pembayaran</span><select name="payment_status"><option value="paid">Sudah dibayar</option><option value="unpaid">Belum dibayar</option></select></label><label class="payment-method-field"><span>Metode Pembayaran</span><select name="payment_method"><option value="Cash">Cash</option><option value="Transfer">Transfer</option><option value="QRIS">QRIS</option><option value="Lainnya">Lainnya</option></select></label></div><label><span>Catatan</span><textarea name="notes" placeholder="Catatan internal admin"></textarea></label><button type="submit">Simpan ke Jadwal</button></form></section><section class="panel"><h2>Whitelist WhatsApp</h2><form class="form" method="post" action="/admin/whitelist"><p class="form-intro">Jika daftar ini diisi, hanya nomor aktif di bawah yang diproses bot.</p><label><span>Nomor WhatsApp</span><input name="phone" required placeholder="628xxxxxxxxxx"></label><button type="submit">Tambah Nomor</button></form><ul class="whitelist-list">${whitelistList}</ul></section></aside></div>
   <section class="panel data-panel" style="margin-top:18px"><h2>Data Booking</h2><div class="table-toolbar booking-filters"><div class="booking-toolbar-head"><span id="booking-count" class="booking-count">${params.bookingRows.length} booking di tanggal ini</span><button id="booking-filter-reset" class="filter-reset" type="button">Reset</button></div><div class="filter-grid"><label><span>Cari</span><input id="booking-search" type="search" placeholder="Kode, nama, nomor, catatan..."></label><label><span>Status</span><select id="booking-status-filter"><option value="">Semua status</option><option value="confirmed">Confirmed</option><option value="pending">Pending</option><option value="expired">Expired</option><option value="cancelled">Cancelled</option></select></label><label><span>Lapangan</span><select id="booking-court-filter"><option value="">Semua lapangan</option>${tableCourtFilterOptions}</select></label><label><span>Pembayaran</span><select id="booking-payment-filter"><option value="">Semua bayar</option><option value="paid">Ada nominal</option><option value="unpaid">Belum ada nominal</option></select></label><label><span>Jam mulai</span><select id="booking-time-filter"><option value="">Semua jam</option>${tableTimeFilterOptions}</select></label></div></div><div style="overflow-x:auto"><table><thead><tr><th>Kode</th><th>Customer</th><th>Lapangan</th><th>Jam</th><th>Status</th><th>Bayar</th><th>Catatan</th><th></th></tr></thead><tbody id="booking-rows">${bookingList}<tr id="booking-filter-empty" class="is-hidden"><td colspan="8" class="empty">Tidak ada booking yang cocok dengan filter.</td></tr></tbody></table></div></section>
 </main>
 <dialog id="cancel-dialog">
@@ -890,6 +900,28 @@ startTimeInput?.addEventListener('change', function () {
   endTimeInput.dispatchEvent(new Event('change', { bubbles: true }))
 })
 
+const manualBookingForm = document.querySelector('.booking-panel form')
+const paymentStatusInput = document.querySelector('select[name="payment_status"]')
+const paymentMethodField = document.querySelector('.payment-method-field')
+const manualTotal = document.getElementById('manual-total')
+function minutesOf(time) {
+  const parts = time.split(':').map(Number)
+  return parts[0] * 60 + parts[1]
+}
+function formatManualRupiah(value) {
+  return 'Rp' + Math.round(value).toLocaleString('id-ID')
+}
+function updateManualPayment() {
+  const hourlyRate = Number(manualBookingForm?.dataset.hourlyRate || 100000)
+  const durationHours = Math.max(0, (minutesOf(endTimeInput.value) - minutesOf(startTimeInput.value)) / 60)
+  if (manualTotal) manualTotal.textContent = formatManualRupiah(hourlyRate * durationHours)
+  paymentMethodField?.classList.toggle('is-hidden', paymentStatusInput?.value !== 'paid')
+}
+startTimeInput?.addEventListener('change', updateManualPayment)
+endTimeInput?.addEventListener('change', updateManualPayment)
+paymentStatusInput?.addEventListener('change', updateManualPayment)
+updateManualPayment()
+
 document.addEventListener('click', function (event) {
   if (!event.target.closest('.custom-select')) closeCustomSelects()
   if (!event.target.closest('.custom-date')) closeCustomDates()
@@ -1003,6 +1035,8 @@ async function createManualBooking(form: Record<string, FormDataEntryValue>) {
   const startTime = String(form.start_time || '')
   const endTime = String(form.end_time || '')
   const status = String(form.status || 'confirmed') as 'pending' | 'confirmed'
+  const paymentStatus = String(form.payment_status || 'paid') === 'paid' ? 'paid' : 'unpaid'
+  const paymentMethod = String(form.payment_method || '').trim()
 
   if (!courtId || !startTime || !endTime || !isValidBookingWindow(startTime, endTime)) throw new Error('Booking hanya bisa dibuat di jam bulat 08.00-22.00.')
   if (!String(form.customer_name || '').trim() || !String(form.customer_phone || '').trim()) throw new Error('Nama dan nomor WhatsApp wajib diisi.')
@@ -1014,6 +1048,11 @@ async function createManualBooking(form: Record<string, FormDataEntryValue>) {
 
   if (activeBookings.some((booking) => overlaps(startTime, endTime, booking))) throw new Error('Slot ini sudah terisi. Pilih jam atau lapangan lain.')
 
+  const amount = Math.round(Number(process.env.BOOKING_HOURLY_RATE ?? 100000) * hoursBetween(startTime, endTime))
+  const rawNotes = String(form.notes || '').trim()
+  const paymentNote = paymentStatus === 'paid' && paymentMethod ? 'Pembayaran manual: ' + paymentMethod : ''
+  const notes = [rawNotes, paymentNote].filter(Boolean).join(' | ') || null
+
   await db.insert(bookings).values({
     bookingCode: bookingCode(),
     customerName: String(form.customer_name).trim(),
@@ -1023,7 +1062,10 @@ async function createManualBooking(form: Record<string, FormDataEntryValue>) {
     startTime,
     endTime,
     status,
-    notes: String(form.notes || '').trim() || null,
+    paymentStatus,
+    paymentAmount: paymentStatus === 'paid' ? amount : null,
+    paidAt: paymentStatus === 'paid' ? new Date() : null,
+    notes,
   })
 }
 
